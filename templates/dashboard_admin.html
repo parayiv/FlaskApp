@@ -7,8 +7,50 @@
 <div class="admin-dashboard-container">
     <header class="dashboard-header">
         <h1 class="page-title">Administrator Dashboard</h1>
-        <p class="page-subtitle">Manage users, system messages, and pending requests.</p>
+        {# <p class="page-subtitle">Manage users, system messages, and pending requests.</p> #}
+        {# Subtitle can be removed if stats summary is more prominent #}
     </header>
+
+    <!-- NEW: Admin Statistics / Overview Section -->
+    <section class="admin-stats-overview common-section" style="text-align:left; padding-top:0; padding-bottom: 30px;">
+        {# <h2 class="section-title" style="text-align:left; margin-bottom:20px;">System Overview</h2> #}
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-icon-wrapper"><i class="fas fa-users stat-icon users"></i></div>
+                <div class="stat-content">
+                    <span class="stat-value">{{ all_users|length if all_users else 0 }}</span>
+                    <span class="stat-label">Total Users</span>
+                </div>
+                 <a href="#user-management-panel-anchor" class="stat-card-link">Manage Users <i class="fas fa-arrow-right"></i></a>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon-wrapper"><i class="fas fa-envelope-open-text stat-icon messages"></i></div>
+                <div class="stat-content">
+                    <span class="stat-value">{{ unread_messages_count }}</span>
+                    <span class="stat-label">New Messages</span>
+                </div>
+                <a href="{{ url_for('admin_view_messages') }}" class="stat-card-link">View Messages <i class="fas fa-arrow-right"></i></a>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon-wrapper"><i class="fas fa-clipboard-list stat-icon requests"></i></div>
+                <div class="stat-content">
+                    <span class="stat-value">{{ pending_requests_count }}</span>
+                    <span class="stat-label">Pending Requests</span>
+                </div>
+                <a href="{{ url_for('admin_view_requests') }}" class="stat-card-link">View Requests <i class="fas fa-arrow-right"></i></a>
+            </div>
+            <div class="stat-card">
+                 {# Replace with an actual illustrative image/icon for system health or activity #}
+                <img src="static/images/activity.png" alt="System Activity" class="stat-card-image">
+                <div class="stat-content">
+                    <span class="stat-value" style="font-size: 1.2em;">Active & Stable</span>
+                    <span class="stat-label">System Status</span>
+                </div>
+            </div>
+        </div>
+    </section>
+    <div id="user-management-panel-anchor"></div> {# Anchor for the link #}
+
 
     <!-- Primary Action: Create New User -->
     <div class="admin-primary-action-bar">
@@ -99,20 +141,91 @@
 </div>
 
 <style>
-    /*
-    DEFINE YOUR CSS VARIABLES HERE OR IN A GLOBAL STYLESHEET (e.g., base.css)
-    :root {
-        --primary-color: #007bff; --primary-color-dark: #0056b3; --primary-color-light: #3395ff;
-        --primary-color-rgb: 0,123,255; --secondary-color: #ffc107; --accent-color: #dc3545;
-        --text-color: #343a40; --text-color-headings: #212529; --text-color-light: #6c757d;
-        --card-bg: #ffffff; --border-color: #dee2e6; --border-color-light: #e9ecef;
-        --border-radius-sm: .2rem; --border-radius-md: .375rem; --shadow-md: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
-        --font-family-headings: "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    /* ... (Keep ALL existing styles from your previous dashboard_admin.html) ... */
+
+    /* NEW Styles for Admin Stats Overview */
+    .admin-stats-overview .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+        gap: 25px;
     }
-    */
+    .stat-card {
+        background-color: var(--card-bg);
+        padding: 20px;
+        border-radius: var(--border-radius-md);
+        box-shadow: var(--shadow-sm);
+        display: flex;
+        /* align-items: center; */ /* Can cause issues if image vs icon content differs in height */
+        border: 1px solid var(--border-color-light);
+        position: relative;
+        overflow: hidden;
+         transition: transform 0.2s ease-out, box-shadow 0.2s ease-out;
+    }
+    .stat-card:hover {
+        transform: translateY(-3px);
+        box-shadow: var(--shadow-md);
+    }
+    .stat-icon-wrapper {
+        font-size: 2.2em; /* Size of the icon itself */
+        padding: 15px;
+        margin-right: 20px;
+        border-radius: 50%; /* Make it circular */
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 60px; /* Fixed size for the circle */
+        height: 60px;
+    }
+    .stat-icon.users { color: var(--primary-color); background-color: rgba(var(--primary-color-rgb, 0,123,255), 0.1); }
+    .stat-icon.messages { color: var(--accent-color, #48a9a6); background-color: rgba(72, 169, 166, 0.1); }
+    .stat-icon.requests { color: var(--secondary-color, #b28c5e); background-color: rgba(178, 140, 94, 0.1); }
 
-    .admin-dashboard-container { /* Styles for overall admin dashboard if needed */ }
+    .stat-content {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+    }
+    .stat-value {
+        font-size: 2em;
+        font-weight: 700;
+        color: var(--text-color-headings);
+        line-height: 1;
+    }
+    .stat-label {
+        font-size: 0.9em;
+        color: var(--text-color-light);
+        margin-top: 4px;
+    }
+    .stat-card-image {
+        width: auto; /* Adjust based on your image aspect ratio */
+        max-height: 60px; /* Match icon wrapper roughly */
+        margin-right: 15px;
+        border-radius: var(--border-radius-sm);
+        object-fit: contain;
+    }
+    .stat-card-link {
+        position: absolute;
+        bottom: 10px;
+        right: 15px;
+        font-size: 0.8em;
+        color: var(--primary-color);
+        text-decoration: none;
+        font-weight: 500;
+    }
+    .stat-card-link:hover {
+        text-decoration: underline;
+    }
+    .stat-card-link i {
+        margin-left: 3px;
+        transition: transform 0.2s ease-out;
+    }
+    .stat-card-link:hover i {
+        transform: translateX(3px);
+    }
 
+
+    /* Ensure these are present or adjust from existing styles */
+    .admin-dashboard-container { }
     .admin-primary-action-bar { margin-bottom: 30px; padding-bottom: 20px; text-align: left; }
     .main-action-btn i { margin-right: 8px; }
     .creative-user-btn { background-image: linear-gradient(45deg, var(--primary-color-dark, #0056b3) 0%, var(--primary-color, #007bff) 50%, var(--primary-color-light, #3395ff) 100%); border: none; border-radius: 50px; padding: 12px 25px; box-shadow: 0 5px 15px rgba(var(--primary-color-rgb, 0,123,255), 0.3), 0 2px 5px rgba(0,0,0,0.1); color: white !important; font-weight: 600; letter-spacing: 0.5px; transition: all 0.3s ease-in-out; overflow: hidden; position: relative; text-decoration: none; }
@@ -120,57 +233,33 @@
     .creative-user-btn:hover, .creative-user-btn:focus { background-image: linear-gradient(45deg, var(--primary-color, #007bff) 0%, var(--primary-color-light, #3395ff) 50%, var(--primary-color-dark, #0056b3) 100%); transform: translateY(-2px) scale(1.02); box-shadow: 0 8px 20px rgba(var(--primary-color-rgb, 0,123,255), 0.4), 0 4px 8px rgba(0,0,0,0.15); color: white !important; text-decoration: none; }
     .creative-user-btn:hover i { transform: rotate(15deg) scale(1.1); }
     .creative-user-btn:active { transform: translateY(0px) scale(1); box-shadow: 0 3px 10px rgba(var(--primary-color-rgb, 0,123,255), 0.2), 0 1px 3px rgba(0,0,0,0.1); }
-
     .admin-dashboard-grid { display: grid; grid-template-columns: 1fr; gap: 30px; }
     @media (min-width: 992px) { .admin-dashboard-grid { grid-template-columns: 2fr 1fr; } .user-management-panel { grid-column: 1 / 2; grid-row: 1 / span 2; } .system-messages-panel { grid-column: 2 / 3; grid-row: 1 / 2; } .user-requests-panel { grid-column: 2 / 3; grid-row: 2 / 3; } }
     @media (min-width: 1200px) { .admin-dashboard-grid { grid-template-columns: repeat(3, 1fr); } .user-management-panel { grid-column: 1 / span 2; grid-row: 1 / span 1; } .system-messages-panel { grid-column: 3 / 4; grid-row: 1 / span 1; } .user-requests-panel { grid-column: 3 / 4; grid-row: 2 / span 1; } }
-
     .dashboard-panel { background-color: var(--card-bg, #fff); padding: 25px 30px; border-radius: var(--border-radius-md, .375rem); box-shadow: var(--shadow-md, 0 0.5rem 1rem rgba(0, 0, 0, 0.15)); border: 1px solid var(--border-color, #dee2e6); display: flex; flex-direction: column; }
     .panel-header { display: flex; justify-content: flex-start; align-items: center; margin-bottom: 20px; }
     .panel-title { font-family: var(--font-family-headings, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif); font-weight: 600; font-size: 1.35em; color: var(--text-color-headings, #212529); margin-top: 0; margin-bottom: 0; }
     .panel-title i { margin-right: 10px; color: var(--primary-color, #007bff); }
-
     .user-list-container { max-height: 500px; overflow-y: auto; flex-grow: 1; }
     .table-responsive-wrapper { overflow-x: auto; }
     .professional-table { width: 100%; margin-bottom: 1rem; color: var(--text-color, #343a40); border-collapse: collapse; }
     .professional-table th, .professional-table td { padding: 0.75rem; vertical-align: top; border-top: 1px solid var(--border-color, #dee2e6); }
     .professional-table thead th { vertical-align: bottom; border-bottom: 2px solid var(--border-color, #dee2e6); text-align: left; font-weight: 600; color: var(--text-color-headings, #212529); }
     .professional-table tbody + tbody { border-top: 2px solid var(--border-color, #dee2e6); }
-
-    .admin-user-table th, .admin-user-table td {
-        padding: 10px 12px;
-        font-size: 0.9em; /* Base font size for table cells */
-    }
-    /* .admin-user-table strong { font-weight: 500; } /* This is already there if you want a specific weight */
-
-    .username-link {
-        color: var(--primary-color, #007bff);
-        text-decoration: none;
-        /* font-weight: 500; */ /* The <strong> tag handles boldness */
-    }
-    .username-link:hover {
-        text-decoration: underline;
-        color: var(--primary-color-dark, #0056b3);
-    }
-    .username-link strong {
-        font-size: 1.1em; /* Makes it 10% larger than the surrounding cell text */
-        font-weight: 600; /* Example: semi-bold. Adjust as needed. Default <strong> is often 700. */
-                           /* If your base.css already styles strong, this might override or complement it. */
-    }
-
+    .admin-user-table th, .admin-user-table td { padding: 10px 12px; font-size: 0.9em; }
+    .username-link { color: var(--primary-color, #007bff); text-decoration: none; font-weight: 500; }
+    .username-link:hover { text-decoration: underline; color: var(--primary-color-dark, #0056b3); }
+    .username-link strong { font-size: 1.1em; font-weight: 600; }
     .status-badge { padding: 4px 8px; border-radius: var(--border-radius-sm, .2rem); font-size: 0.8em; font-weight: 600; color: white; display: inline-block; }
     .status-admin { background-color: var(--secondary-color, #ffc107); }
     .status-user { background-color: var(--text-color-light, #6c757d); }
-
     .actions-cell { white-space: nowrap; text-align: right; }
     .actions-cell .action-btn { margin-left: 5px; padding: 5px 8px; font-size: 0.85em; }
     .actions-cell .action-btn i { margin-right: 4px; }
     .delete-form { display: inline-block; margin-left: 5px; }
-
     .btn-block { width: 100%; margin-top: 10px; text-align: center; }
     .badge-notification { background-color: var(--accent-color, #dc3545); color: white; border-radius: 10px; padding: 2px 7px; font-size: 0.75em; margin-left: 8px; font-weight: bold; }
     .panel-empty-state { text-align: center; padding: 20px; color: var(--text-color-light, #6c757d); }
     .panel-empty-state i { font-size: 1.8em; margin-bottom: 10px; color: var(--border-color, #dee2e6); }
-
 </style>
 {% endblock %}

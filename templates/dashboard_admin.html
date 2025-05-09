@@ -39,7 +39,11 @@
                         <tbody>
                             {% for user_item in all_users %}
                             <tr>
-                                <td><strong>{{ user_item.username }}</strong></td>
+                                <td>
+                                    <a href="{{ url_for('admin_view_user_profile', user_id=user_item.id) }}" class="username-link" title="View {{ user_item.username }}'s Profile">
+                                        <strong>{{ user_item.username }}</strong>
+                                    </a>
+                                </td>
                                 <td>{{ user_item.full_name if user_item.full_name else '-' }}</td>
                                 <td>{{ user_item.department if user_item.department else '-' }}</td>
                                 <td>{{ user_item.gender if user_item.gender else '-' }}</td>
@@ -97,179 +101,64 @@
 <style>
     /*
     DEFINE YOUR CSS VARIABLES HERE OR IN A GLOBAL STYLESHEET (e.g., base.css)
-    These are examples, adjust them to your theme.
     :root {
-        --primary-color: #007bff;
-        --primary-color-dark: #0056b3;
-        --primary-color-light: #3395ff;
-        --primary-color-rgb: 0,123,255;
-        --secondary-color: #ffc107;
-        --accent-color: #dc3545;
-        --text-color: #343a40;
-        --text-color-headings: #212529;
-        --text-color-light: #6c757d;
-        --card-bg: #ffffff;
-        --border-color: #dee2e6;
-        --border-color-light: #e9ecef;
-        --border-radius-sm: .2rem;
-        --border-radius-md: .375rem;
-        --shadow-md: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
-        --font-family-sans-serif: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+        --primary-color: #007bff; --primary-color-dark: #0056b3; --primary-color-light: #3395ff;
+        --primary-color-rgb: 0,123,255; --secondary-color: #ffc107; --accent-color: #dc3545;
+        --text-color: #343a40; --text-color-headings: #212529; --text-color-light: #6c757d;
+        --card-bg: #ffffff; --border-color: #dee2e6; --border-color-light: #e9ecef;
+        --border-radius-sm: .2rem; --border-radius-md: .375rem; --shadow-md: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
         --font-family-headings: "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
     }
     */
 
     .admin-dashboard-container { /* Styles for overall admin dashboard if needed */ }
 
-    /* Styles for the primary action bar */
-    .admin-primary-action-bar {
-        margin-bottom: 30px;
-        padding-bottom: 20px;
-        text-align: left; /* Or 'center' / 'right' */
-    }
+    .admin-primary-action-bar { margin-bottom: 30px; padding-bottom: 20px; text-align: left; }
+    .main-action-btn i { margin-right: 8px; }
+    .creative-user-btn { background-image: linear-gradient(45deg, var(--primary-color-dark, #0056b3) 0%, var(--primary-color, #007bff) 50%, var(--primary-color-light, #3395ff) 100%); border: none; border-radius: 50px; padding: 12px 25px; box-shadow: 0 5px 15px rgba(var(--primary-color-rgb, 0,123,255), 0.3), 0 2px 5px rgba(0,0,0,0.1); color: white !important; font-weight: 600; letter-spacing: 0.5px; transition: all 0.3s ease-in-out; overflow: hidden; position: relative; text-decoration: none; }
+    .creative-user-btn i { margin-right: 12px; font-size: 1.1em; transition: transform 0.3s ease-in-out; }
+    .creative-user-btn:hover, .creative-user-btn:focus { background-image: linear-gradient(45deg, var(--primary-color, #007bff) 0%, var(--primary-color-light, #3395ff) 50%, var(--primary-color-dark, #0056b3) 100%); transform: translateY(-2px) scale(1.02); box-shadow: 0 8px 20px rgba(var(--primary-color-rgb, 0,123,255), 0.4), 0 4px 8px rgba(0,0,0,0.15); color: white !important; text-decoration: none; }
+    .creative-user-btn:hover i { transform: rotate(15deg) scale(1.1); }
+    .creative-user-btn:active { transform: translateY(0px) scale(1); box-shadow: 0 3px 10px rgba(var(--primary-color-rgb, 0,123,255), 0.2), 0 1px 3px rgba(0,0,0,0.1); }
 
-    .main-action-btn {
-        /* Base styles for main action buttons, might be partially overridden by specific creative buttons */
-        /* padding: 12px 24px; */ /* Handled by .creative-user-btn */
-        /* font-size: 1.1em; */   /* Handled by .creative-user-btn */
-        /* font-weight: 600; */ /* Handled by .creative-user-btn */
-        /* border-radius: var(--border-radius-md, 6px); */ /* Handled by .creative-user-btn */
-    }
-    .main-action-btn i {
-        margin-right: 8px;
-    }
+    .admin-dashboard-grid { display: grid; grid-template-columns: 1fr; gap: 30px; }
+    @media (min-width: 992px) { .admin-dashboard-grid { grid-template-columns: 2fr 1fr; } .user-management-panel { grid-column: 1 / 2; grid-row: 1 / span 2; } .system-messages-panel { grid-column: 2 / 3; grid-row: 1 / 2; } .user-requests-panel { grid-column: 2 / 3; grid-row: 2 / 3; } }
+    @media (min-width: 1200px) { .admin-dashboard-grid { grid-template-columns: repeat(3, 1fr); } .user-management-panel { grid-column: 1 / span 2; grid-row: 1 / span 1; } .system-messages-panel { grid-column: 3 / 4; grid-row: 1 / span 1; } .user-requests-panel { grid-column: 3 / 4; grid-row: 2 / span 1; } }
 
-    /* Creative Button Styling */
-    .creative-user-btn {
-        background-image: linear-gradient(45deg, var(--primary-color-dark, #0056b3) 0%, var(--primary-color, #007bff) 50%, var(--primary-color-light, #3395ff) 100%);
-        border: none;
-        border-radius: 50px; /* Pill shape */
-        padding: 12px 25px; /* Adjusted padding for pill shape */
-        box-shadow: 0 5px 15px rgba(var(--primary-color-rgb, 0,123,255), 0.3),
-                    0 2px 5px rgba(0,0,0,0.1);
-        color: white !important; /* Ensure text is white, override Bootstrap if necessary */
-        font-weight: 600;
-        letter-spacing: 0.5px;
-        transition: all 0.3s ease-in-out;
-        overflow: hidden;
-        position: relative;
-        text-decoration: none; /* Ensure no underline from <a> tag if btn class doesn't remove it */
-    }
-
-    .creative-user-btn i {
-        margin-right: 12px;
-        font-size: 1.1em;
-        transition: transform 0.3s ease-in-out;
-    }
-
-    .creative-user-btn:hover, .creative-user-btn:focus {
-        background-image: linear-gradient(45deg, var(--primary-color, #007bff) 0%, var(--primary-color-light, #3395ff) 50%, var(--primary-color-dark, #0056b3) 100%);
-        transform: translateY(-2px) scale(1.02);
-        box-shadow: 0 8px 20px rgba(var(--primary-color-rgb, 0,123,255), 0.4),
-                    0 4px 8px rgba(0,0,0,0.15);
-        color: white !important; /* Maintain white text on hover */
-        text-decoration: none; /* Ensure no underline on hover */
-    }
-
-    .creative-user-btn:hover i {
-        transform: rotate(15deg) scale(1.1);
-    }
-
-    .creative-user-btn:active {
-        transform: translateY(0px) scale(1);
-        box-shadow: 0 3px 10px rgba(var(--primary-color-rgb, 0,123,255), 0.2),
-                    0 1px 3px rgba(0,0,0,0.1);
-    }
-
-
-    .admin-dashboard-grid {
-        display: grid;
-        grid-template-columns: 1fr; /* Default: single column */
-        gap: 30px;
-    }
-    @media (min-width: 992px) { /* Two columns for larger widgets, third for smaller ones */
-        .admin-dashboard-grid {
-             grid-template-columns: 2fr 1fr;
-        }
-        .user-management-panel {
-            grid-column: 1 / 2;
-            grid-row: 1 / span 2;
-        }
-        .system-messages-panel { grid-column: 2 / 3; grid-row: 1 / 2; }
-        .user-requests-panel { grid-column: 2 / 3; grid-row: 2 / 3; }
-    }
-    @media (min-width: 1200px) { /* Three columns on very large screens */
-         .admin-dashboard-grid {
-             grid-template-columns: repeat(3, 1fr);
-         }
-         .user-management-panel { grid-column: 1 / span 2; grid-row: 1 / span 1; }
-         .system-messages-panel { grid-column: 3 / 4; grid-row: 1 / span 1; }
-         .user-requests-panel { grid-column: 3 / 4; grid-row: 2 / span 1; }
-    }
-
-
-    .dashboard-panel {
-        background-color: var(--card-bg, #fff);
-        padding: 25px 30px;
-        border-radius: var(--border-radius-md, .375rem);
-        box-shadow: var(--shadow-md, 0 0.5rem 1rem rgba(0, 0, 0, 0.15));
-        border: 1px solid var(--border-color, #dee2e6);
-        display: flex; flex-direction: column;
-    }
-    .panel-header {
-        display: flex;
-        justify-content: flex-start;
-        align-items: center;
-        margin-bottom: 20px;
-    }
-    .panel-title {
-        font-family: var(--font-family-headings, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif);
-        font-weight: 600; font-size: 1.35em;
-        color: var(--text-color-headings, #212529); margin-top: 0; margin-bottom: 0;
-    }
+    .dashboard-panel { background-color: var(--card-bg, #fff); padding: 25px 30px; border-radius: var(--border-radius-md, .375rem); box-shadow: var(--shadow-md, 0 0.5rem 1rem rgba(0, 0, 0, 0.15)); border: 1px solid var(--border-color, #dee2e6); display: flex; flex-direction: column; }
+    .panel-header { display: flex; justify-content: flex-start; align-items: center; margin-bottom: 20px; }
+    .panel-title { font-family: var(--font-family-headings, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif); font-weight: 600; font-size: 1.35em; color: var(--text-color-headings, #212529); margin-top: 0; margin-bottom: 0; }
     .panel-title i { margin-right: 10px; color: var(--primary-color, #007bff); }
 
-    .user-list-container {
-        max-height: 500px;
-        overflow-y: auto;
-        flex-grow: 1;
-    }
-    .table-responsive-wrapper { /* Added for better responsive tables if needed */
-        overflow-x: auto;
-    }
-    .professional-table { /* General style for tables */
-        width: 100%;
-        margin-bottom: 1rem;
-        color: var(--text-color, #343a40);
-        border-collapse: collapse; /* Ensure borders are clean */
-    }
-    .professional-table th,
-    .professional-table td {
-        padding: 0.75rem;
-        vertical-align: top;
-        border-top: 1px solid var(--border-color, #dee2e6);
-    }
-    .professional-table thead th {
-        vertical-align: bottom;
-        border-bottom: 2px solid var(--border-color, #dee2e6);
-        text-align: left; /* Ensure headers are left-aligned */
-        font-weight: 600; /* Make headers bolder */
-        color: var(--text-color-headings, #212529);
-    }
-    .professional-table tbody + tbody {
-        border-top: 2px solid var(--border-color, #dee2e6);
-    }
+    .user-list-container { max-height: 500px; overflow-y: auto; flex-grow: 1; }
+    .table-responsive-wrapper { overflow-x: auto; }
+    .professional-table { width: 100%; margin-bottom: 1rem; color: var(--text-color, #343a40); border-collapse: collapse; }
+    .professional-table th, .professional-table td { padding: 0.75rem; vertical-align: top; border-top: 1px solid var(--border-color, #dee2e6); }
+    .professional-table thead th { vertical-align: bottom; border-bottom: 2px solid var(--border-color, #dee2e6); text-align: left; font-weight: 600; color: var(--text-color-headings, #212529); }
+    .professional-table tbody + tbody { border-top: 2px solid var(--border-color, #dee2e6); }
 
     .admin-user-table th, .admin-user-table td {
         padding: 10px 12px;
-        font-size: 0.9em;
+        font-size: 0.9em; /* Base font size for table cells */
     }
-    .admin-user-table strong { font-weight: 500; }
-    .status-badge {
-        padding: 4px 8px; border-radius: var(--border-radius-sm, .2rem);
-        font-size: 0.8em; font-weight: 600; color: white;
-        display: inline-block; /* Ensure padding and radius apply correctly */
+    /* .admin-user-table strong { font-weight: 500; } /* This is already there if you want a specific weight */
+
+    .username-link {
+        color: var(--primary-color, #007bff);
+        text-decoration: none;
+        /* font-weight: 500; */ /* The <strong> tag handles boldness */
     }
+    .username-link:hover {
+        text-decoration: underline;
+        color: var(--primary-color-dark, #0056b3);
+    }
+    .username-link strong {
+        font-size: 1.1em; /* Makes it 10% larger than the surrounding cell text */
+        font-weight: 600; /* Example: semi-bold. Adjust as needed. Default <strong> is often 700. */
+                           /* If your base.css already styles strong, this might override or complement it. */
+    }
+
+    .status-badge { padding: 4px 8px; border-radius: var(--border-radius-sm, .2rem); font-size: 0.8em; font-weight: 600; color: white; display: inline-block; }
     .status-admin { background-color: var(--secondary-color, #ffc107); }
     .status-user { background-color: var(--text-color-light, #6c757d); }
 
@@ -279,15 +168,7 @@
     .delete-form { display: inline-block; margin-left: 5px; }
 
     .btn-block { width: 100%; margin-top: 10px; text-align: center; }
-    .badge-notification {
-        background-color: var(--accent-color, #dc3545);
-        color: white;
-        border-radius: 10px;
-        padding: 2px 7px;
-        font-size: 0.75em;
-        margin-left: 8px;
-        font-weight: bold;
-    }
+    .badge-notification { background-color: var(--accent-color, #dc3545); color: white; border-radius: 10px; padding: 2px 7px; font-size: 0.75em; margin-left: 8px; font-weight: bold; }
     .panel-empty-state { text-align: center; padding: 20px; color: var(--text-color-light, #6c757d); }
     .panel-empty-state i { font-size: 1.8em; margin-bottom: 10px; color: var(--border-color, #dee2e6); }
 

@@ -5,8 +5,8 @@
 {% block content %}
 <div class="professional-dashboard">
     <header class="dashboard-main-header">
-        <h1 class="page-title">Welcome Back, {{ g.user.username }}</h1>
-        <p class="page-subtitle">Here’s an overview of your HR activities and requests.</p>
+        <h1 class="page-title">Welcome Back, {{ g.user.full_name or g.user.username }}</h1>
+        <p class="page-subtitle">Here’s an overview of your HR activities, messages, and requests.</p>
     </header>
 
     <div class="dashboard-layout-grid">
@@ -32,15 +32,62 @@
             </div>
         </section>
 
-        <!-- Recent Requests Panel -->
+        <!-- My Sent Messages Panel -->
+        <section class="dashboard-panel recent-messages-panel">
+            <div class="panel-header">
+                <h2 class="panel-title">My Sent Messages</h2>
+                {# <a href="#" class="panel-header-link btn btn-sm btn-outline-primary">View All</a> #}
+            </div>
+            {% if user_messages %}
+                <div class="messages-list">
+                    {% for msg in user_messages[:4] %} {# Show latest 4 for this panel #}
+                    <div class="message-summary-item">
+                        <div class="message-info">
+                            <span class="message-subject">
+                                <i class="fas fa-envelope fa-fw"></i>
+                                {{ msg.subject|truncate(50, True) }}
+                                {% if msg.is_read %}<span class="read-receipt" title="Read by admin"><i class="fas fa-eye"></i></span>{% endif %}
+                            </span>
+                            <p class="message-body-preview">{{ msg.body|truncate(70, True)|striptags }}</p>
+                            <span class="message-date">Sent: {% if msg.timestamp %}{{ msg.timestamp.strftime('%d %b %Y, %H:%M') }}{% else %}N/A{% endif %}</span>
+                            {% if msg.attachment_count > 0 %}
+                                <span class="attachment-info"><i class="fas fa-paperclip"></i> {{ msg.attachment_count }} attachment(s)</span>
+                            {% endif %}
+                        </div>
+                        <div class="message-actions">
+                            {% if g.user.id == msg.sender_id %} {# Assuming sender_id is available on msg object #}
+                                {# Edit button - Jinja commented out as route doesn't exist yet #}
+                                {# <a href="{{ url_for('update_message_by_user', message_id=msg.id) }}" class="btn btn-xs btn-outline-secondary action-btn-icon" title="Edit Message"><i class="fas fa-edit"></i></a> #}
+                                <form action="{{ url_for('delete_message_by_user', message_id=msg.id) }}" method="post" class="inline-delete-form" onsubmit="return confirm('Are you sure you want to delete this message?');">
+                                    <button type="submit" class="btn btn-xs btn-danger action-btn-icon" title="Delete Message"><i class="fas fa-trash-alt"></i></button>
+                                </form>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% if user_messages|length > 4 %}
+                    <div class="view-all-centered">
+                        <a href="#full-message-log" class="btn btn-outline-primary btn-sm">View Full Message Log</a>
+                    </div>
+                {% endif %}
+            {% else %}
+                <div class="panel-empty-state">
+                    <i class="fas fa-comments fa-2x"></i>
+                    <p>No messages sent yet.</p>
+                </div>
+            {% endif %}
+        </section>
+
+
+        <!-- Recent Requests Panel (with Delete for pending) -->
         <section class="dashboard-panel recent-requests-panel">
             <div class="panel-header">
                 <h2 class="panel-title">Recent Requests</h2>
-                {# <a href="#" class="panel-header-link btn btn-sm btn-outline-primary">View All</a> #}
             </div>
             {% if user_requests %}
                 <div class="requests-list">
-                    {% for req in user_requests[:4] %} {# Show latest 4 for this panel #}
+                    {% for req in user_requests[:4] %}
                     <div class="request-summary-item status-border-{{ req.status|lower }}">
                         <div class="request-info">
                             <span class="request-type">
@@ -55,9 +102,19 @@
                                 {{ req.status|capitalize }}
                             </span>
                             {% if req.admin_notes %}
-                            <span class="admin-note-indicator" title="{{ req.admin_notes }}">
+                            <span class="admin-note-indicator" title="{{ req.admin_notes|escape }}">
                                 <i class="fas fa-info-circle"></i> Notes
                             </span>
+                            {% endif %}
+
+                            {% if req.status == 'pending' %}
+                            <div class="pending-actions">
+                                {# Edit button - Jinja commented out as route doesn't exist yet #}
+                                {# <a href="{{ url_for('update_request_by_user', request_id=req.id) }}" class="btn btn-xs btn-outline-secondary action-btn-icon" title="Edit Request"><i class="fas fa-edit"></i></a> #}
+                                <form action="{{ url_for('delete_request_by_user', request_id=req.id) }}" method="post" class="inline-delete-form" onsubmit="return confirm('Are you sure you want to delete this pending request?');">
+                                    <button type="submit" class="btn btn-xs btn-danger action-btn-icon" title="Delete Request"><i class="fas fa-trash-alt"></i></button>
+                                </form>
+                            </div>
                             {% endif %}
                         </div>
                     </div>
@@ -65,7 +122,7 @@
                 </div>
                 {% if user_requests|length > 4 %}
                     <div class="view-all-centered">
-                        <a href="#full-history-table" class="btn btn-outline-primary btn-sm">View Full History</a>
+                        <a href="#full-request-log" class="btn btn-outline-primary btn-sm">View Full Request Log</a>
                     </div>
                 {% endif %}
             {% else %}
@@ -76,8 +133,53 @@
             {% endif %}
         </section>
 
-        <!-- Full Request History Table (Optional, can be on a separate page) -->
-        <section class="dashboard-panel full-history-table-panel" id="full-history-table">
+        <!-- Full Message Log Table -->
+        <section class="dashboard-panel full-history-table-panel" id="full-message-log">
+             <h2 class="panel-title">Full Message Log</h2>
+            {% if user_messages %}
+            <div class="table-responsive-wrapper">
+                <table class="professional-table">
+                    <thead>
+                        <tr>
+                            <th>Subject</th>
+                            <th>Preview</th>
+                            <th>Sent</th>
+                            <th>Attachments</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for msg in user_messages %}
+                        <tr>
+                            <td class="subject-column">{{ msg.subject|truncate(40, True) }}</td>
+                            <td class="preview-column">{{ msg.body|truncate(80, True)|striptags }}</td>
+                            <td>{% if msg.timestamp %}{{ msg.timestamp.strftime('%Y-%m-%d %H:%M') }}{% else %}N/A{% endif %}</td>
+                            <td>{{ msg.attachment_count if msg.attachment_count > 0 else '-' }}</td>
+                            <td>{% if msg.is_read %}<span class="status-tag status-read">Read</span>{% else %}<span class="status-tag status-unread">Unread</span>{% endif %}</td>
+                            <td class="actions-column-table">
+                                {% if g.user.id == msg.sender_id %}  {# Assuming sender_id is available on msg object #}
+                                    {# Edit button - Jinja commented out as route doesn't exist yet #}
+                                    {# <a href="{{ url_for('update_message_by_user', message_id=msg.id) }}" class="btn btn-xs btn-outline-secondary action-btn-icon" title="Edit Message"><i class="fas fa-edit"></i></a> #}
+                                    <form action="{{ url_for('delete_message_by_user', message_id=msg.id) }}" method="post" class="inline-delete-form" onsubmit="return confirm('Are you sure you want to delete this message?');">
+                                        <button type="submit" class="btn btn-xs btn-danger action-btn-icon" title="Delete Message"><i class="fas fa-trash-alt"></i></button>
+                                    </form>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+                 <div class="panel-empty-state" style="padding-top:10px;">
+                    <p>Your message log is currently empty.</p>
+                </div>
+            {% endif %}
+        </section>
+
+        <!-- Full Request History Table -->
+        <section class="dashboard-panel full-history-table-panel" id="full-request-log">
              <h2 class="panel-title">Full Request Log</h2>
             {% if user_requests %}
             <div class="table-responsive-wrapper">
@@ -89,6 +191,7 @@
                             <th>Submitted</th>
                             <th>Status</th>
                             <th>Admin Notes</th>
+                            <th>Actions</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -96,13 +199,24 @@
                         <tr>
                             <td><i class="fas {% if req.request_type == 'payslip' %}fa-file-alt{% elif req.request_type == 'vacation' %}fa-umbrella-beach{% else %}fa-clipboard-list{% endif %} fa-fw"></i> {{ req.request_type|capitalize }}</td>
                             <td class="details-column">{{ req.details|truncate(100, True) if req.details else '-' }}</td>
-                            <td>{% if req.submitted_at %}{{ req.submitted_at.strftime('%Y-%m-%d') }}{% else %}N/A{% endif %}</td>
+                            <td>{% if req.submitted_at %}{{ req.submitted_at.strftime('%Y-%m-%d %H:%M') }}{% else %}N/A{% endif %}</td>
                             <td>
                                 <span class="status-tag status-{{ req.status|lower }}">
                                     {{ req.status|capitalize }}
                                 </span>
                             </td>
-                            <td class="notes-column">{{ req.admin_notes|truncate(80, True) if req.admin_notes else '-' }}</td>
+                            <td class="notes-column">{{ req.admin_notes|truncate(80, True)|escape if req.admin_notes else '-' }}</td>
+                            <td class="actions-column-table">
+                                {% if req.status == 'pending' %}
+                                    {# Edit button - Jinja commented out as route doesn't exist yet #}
+                                    {# <a href="{{ url_for('update_request_by_user', request_id=req.id) }}" class="btn btn-xs btn-outline-secondary action-btn-icon" title="Edit Request"><i class="fas fa-edit"></i></a> #}
+                                    <form action="{{ url_for('delete_request_by_user', request_id=req.id) }}" method="post" class="inline-delete-form" onsubmit="return confirm('Are you sure you want to delete this pending request?');">
+                                        <button type="submit" class="btn btn-xs btn-danger action-btn-icon" title="Delete Request"><i class="fas fa-trash-alt"></i></button>
+                                    </form>
+                                {% else %}
+                                    -
+                                {% endif %}
+                            </td>
                         </tr>
                         {% endfor %}
                     </tbody>
@@ -118,205 +232,69 @@
 </div>
 
 <style>
-    .professional-dashboard {
-        /* Overall container */
-    }
+    /* ... (Keep existing styles from dashboard_user.html, including those for Message Panel and Actions) ... */
 
-    .dashboard-main-header {
-        margin-bottom: 35px;
+    /* Re-paste existing styles here if they were removed, or ensure they are in base.html */
+    .professional-dashboard { /* Overall container */ }
+    .dashboard-main-header { margin-bottom: 35px; }
+    .dashboard-layout-grid { display: grid; grid-template-columns: 1fr; gap: 30px; }
+    @media (min-width: 992px) {
+        .dashboard-layout-grid { grid-template-columns: repeat(2, 1fr); }
+        .full-history-table-panel, .full-message-log-panel { grid-column: 1 / -1; }
     }
-
-    .dashboard-layout-grid {
-        display: grid;
-        grid-template-columns: 1fr; /* Default to single column */
-        gap: 30px;
-    }
-    @media (min-width: 992px) { /* Desktop: 1/3 for actions, 2/3 for requests OR two columns */
-        .dashboard-layout-grid {
-            grid-template-columns: repeat(2, 1fr); /* Two equal columns */
-            /* Or: grid-template-columns: 1fr 2fr;  for unequal */
-        }
-        .full-history-table-panel { /* Full history spans both columns if present */
-             grid-column: 1 / -1;
-        }
-    }
-
-
-    .dashboard-panel {
-        background-color: var(--card-bg);
-        padding: 25px 30px;
-        border-radius: var(--border-radius-md);
-        box-shadow: var(--shadow-md);
-        border: 1px solid var(--border-color);
-    }
-    .panel-title {
-        font-family: var(--font-family-headings);
-        font-weight: 600;
-        font-size: 1.35em;
-        color: var(--text-color-headings);
-        margin-top: 0;
-        margin-bottom: 20px;
-        padding-bottom: 12px;
-        border-bottom: 1px solid var(--border-color);
-    }
-    .panel-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 20px; /* Added for spacing if link is present */
-    }
-    .panel-header .panel-title {
-        margin-bottom: 0; /* Remove bottom margin/border if using panel-header */
-        border-bottom: none;
-    }
-    .panel-header-link { font-size: 0.85em !important; padding: 6px 12px !important; }
-
-
-    /* Quick Actions Panel */
-    .action-items-container {
-        display: flex;
-        flex-direction: column;
-        gap: 12px;
-    }
-    .action-item {
-        display: flex;
-        align-items: center;
-        padding: 15px;
-        background-color: var(--background-color); /* Light background for items */
-        border-radius: var(--border-radius-sm);
-        text-decoration: none;
-        color: var(--text-color-dark);
-        transition: background-color 0.2s, box-shadow 0.2s;
-        border: 1px solid var(--border-color);
-    }
-    .action-item:hover {
-        background-color: #e9ecef; /* Slightly darker on hover */
-        box-shadow: var(--shadow-sm);
-    }
-    .action-icon {
-        font-size: 1.4em;
-        color: var(--primary-color);
-        margin-right: 15px;
-        width: 25px; /* Fixed width for alignment */
-        text-align: center;
-    }
-    .action-label {
-        flex-grow: 1;
-        font-weight: 500;
-        font-size: 1.05em;
-    }
-    .action-item .chevron {
-        font-size: 1em;
-        color: var(--text-color-light);
-    }
-
-    /* Recent Requests Panel */
-    .requests-list {
-        display: flex;
-        flex-direction: column;
-        gap: 15px;
-    }
-    .request-summary-item {
-        background-color: var(--background-color);
-        padding: 15px;
-        border-radius: var(--border-radius-sm);
-        display: flex;
-        justify-content: space-between;
-        align-items: flex-start; /* Align items to top for varied content height */
-        border-left: 4px solid var(--border-color); /* Default border */
-    }
-    .status-border-pending { border-left-color: #ffc107; } /* Bootstrap warning yellow */
-    .status-border-approved { border-left-color: #28a745; } /* Bootstrap success green */
-    .status-border-rejected { border-left-color: #dc3545; } /* Bootstrap danger red */
-
-    .request-info { flex-grow: 1; margin-right: 15px; }
-    .request-type {
-        font-weight: 600;
-        font-size: 1em;
-        color: var(--text-color-headings);
-        display: block;
-        margin-bottom: 5px;
-    }
-    .request-type i { color: var(--secondary-color); margin-right: 6px; }
-    .request-details-preview {
-        font-size: 0.9em;
-        color: var(--text-color-light);
-        margin-bottom: 8px;
-        line-height: 1.5;
-    }
-    .request-date {
-        font-size: 0.8em;
-        color: #6c757d;
-        display: block;
-    }
+    .dashboard-panel { background-color: var(--card-bg); padding: 25px 30px; border-radius: var(--border-radius-md); box-shadow: var(--shadow-md); border: 1px solid var(--border-color); }
+    .panel-title { font-family: var(--font-family-headings); font-weight: 600; font-size: 1.35em; color: var(--text-color-headings); margin-top: 0; margin-bottom: 20px; padding-bottom: 12px; border-bottom: 1px solid var(--border-color); }
+    .panel-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+    .panel-header .panel-title { margin-bottom: 0; border-bottom: none; }
+    .action-items-container { display: flex; flex-direction: column; gap: 12px; }
+    .action-item { display: flex; align-items: center; padding: 15px; background-color: var(--background-color); border-radius: var(--border-radius-sm); text-decoration: none; color: var(--text-color-dark); transition: background-color 0.2s, box-shadow 0.2s; border: 1px solid var(--border-color); }
+    .action-item:hover { background-color: #e9ecef; box-shadow: var(--shadow-sm); }
+    .action-icon { font-size: 1.4em; color: var(--primary-color); margin-right: 15px; width: 25px; text-align: center; }
+    .action-label { flex-grow: 1; font-weight: 500; font-size: 1.05em; }
+    .action-item .chevron { font-size: 1em; color: var(--text-color-light); }
+    .requests-list, .messages-list { display: flex; flex-direction: column; gap: 15px; }
+    .request-summary-item { background-color: var(--background-color); padding: 15px; border-radius: var(--border-radius-sm); display: flex; justify-content: space-between; align-items: flex-start; border-left: 4px solid var(--border-color); }
+    .status-border-pending { border-left-color: #ffc107; }
+    .status-border-approved { border-left-color: #28a745; }
+    .status-border-rejected { border-left-color: #dc3545; }
+    .request-info, .message-info { flex-grow: 1; margin-right: 15px; }
+    .request-type, .message-subject { font-weight: 600; font-size: 1em; color: var(--text-color-headings); display: block; margin-bottom: 5px; }
+    .request-type i, .message-subject i { color: var(--secondary-color); margin-right: 6px; }
+    .request-details-preview, .message-body-preview { font-size: 0.9em; color: var(--text-color-light); margin-bottom: 8px; line-height: 1.5; }
+    .request-date, .message-date { font-size: 0.8em; color: #6c757d; display: block; margin-bottom: 4px; }
     .request-status-area { text-align: right; min-width: 120px; }
-    .status-tag {
-        display: inline-block;
-        padding: 5px 12px;
-        border-radius: 20px; /* Pill shape */
-        font-size: 0.8em;
-        font-weight: 600;
-        color: white;
-        margin-bottom: 5px;
-    }
+    .status-tag { display: inline-block; padding: 5px 12px; border-radius: 20px; font-size: 0.8em; font-weight: 600; color: white; margin-bottom: 5px; }
     .status-pending { background-color: #ffc107; color: #333; }
     .status-approved { background-color: #28a745; }
     .status-rejected { background-color: #dc3545; }
-    .admin-note-indicator {
-        font-size: 0.8em;
-        color: var(--primary-color);
-        cursor: help;
-        display: block;
-    }
+    .admin-note-indicator { font-size: 0.8em; color: var(--primary-color); cursor: help; display: block; }
     .admin-note-indicator i { margin-right: 4px; }
     .view-all-centered { text-align:center; margin-top: 20px; }
-
-
-    /* Full History Table */
     .table-responsive-wrapper { overflow-x: auto; margin-top: 10px; }
-    .professional-table {
-        width: 100%;
-        border-collapse: collapse;
-        font-size: 0.95em;
-    }
-    .professional-table th,
-    .professional-table td {
-        padding: 12px 15px;
-        text-align: left;
-        border-bottom: 1px solid var(--border-color);
-    }
-    .professional-table thead th {
-        background-color: #f1f3f5; /* Lighter header */
-        font-weight: 600;
-        font-family: var(--font-family-headings);
-        color: var(--text-color-dark);
-        text-transform: uppercase;
-        font-size: 0.85em;
-        letter-spacing: 0.5px;
-    }
-    .professional-table tbody tr:hover {
-        background-color: #f8f9fa_hover; /* Very subtle hover */
-    }
+    .professional-table { width: 100%; border-collapse: collapse; font-size: 0.95em; }
+    .professional-table th, .professional-table td { padding: 12px 15px; text-align: left; border-bottom: 1px solid var(--border-color); }
+    .professional-table thead th { background-color: #f1f3f5; font-weight: 600; font-family: var(--font-family-headings); color: var(--text-color-dark); text-transform: uppercase; font-size: 0.85em; letter-spacing: 0.5px; }
+    .professional-table tbody tr:hover { background-color: #f8f9fa; }
     .professional-table tbody tr:last-child td { border-bottom: none; }
     .professional-table td i.fa-fw { margin-right: 8px; color: var(--text-color-light); }
-    .details-column, .notes-column {
-        font-size: 0.9em;
-        color: var(--text-color-light);
-        max-width: 250px; /* Control width of text heavy columns */
-        white-space: normal; /* Allow wrapping */
-        word-break: break-word;
-    }
-
-    .panel-empty-state {
-        text-align: center;
-        padding: 30px 20px;
-        color: var(--text-color-light);
-    }
-    .panel-empty-state i {
-        font-size: 2.5em; /* Larger icon for empty state */
-        margin-bottom: 15px;
-        color: var(--border-color); /* Muted icon color */
-    }
+    .details-column, .notes-column, .preview-column { font-size: 0.9em; color: var(--text-color-light); max-width: 250px; white-space: normal; word-break: break-word; }
+    .subject-column { font-weight: 500; }
+    .panel-empty-state { text-align: center; padding: 30px 20px; color: var(--text-color-light); }
+    .panel-empty-state i { font-size: 2.5em; margin-bottom: 15px; color: var(--border-color); }
+    .message-summary-item { background-color: var(--background-color); padding: 15px; border-radius: var(--border-radius-sm); display: flex; justify-content: space-between; align-items: flex-start; border-left: 4px solid var(--primary-color); }
+    .attachment-info { font-size: 0.8em; color: var(--secondary-color); }
+    .attachment-info i { margin-right: 3px; }
+    .read-receipt { font-size: 0.75em; color: var(--success-color, #28a745); margin-left: 8px; font-weight: normal; }
+    .read-receipt i { font-size: 0.9em; }
+    .message-actions, .pending-actions { display: flex; gap: 8px; align-items: center; min-width: 50px; margin-top: 5px; }
+    .action-btn-icon { padding: 5px 8px !important; font-size: 0.8em !important; line-height: 1; }
+    .btn-xs { padding: .2rem .4rem; font-size: .75rem; line-height: 1.5; border-radius: .2rem; }
+    .inline-delete-form { display: inline-block; margin: 0; }
+    .status-tag.status-read { background-color: var(--success-color, #28a745); color: white;}
+    .status-tag.status-unread { background-color: var(--text-color-light, #6c757d); color: white;}
+    .actions-column-table { white-space: nowrap; }
+    .actions-column-table .inline-delete-form, .actions-column-table .action-btn-icon { margin-right: 5px; }
+    .actions-column-table .action-btn-icon:last-child { margin-right: 0; }
 
     @media (max-width: 768px) {
         .page-title { font-size: 1.8em; }
@@ -324,11 +302,10 @@
         .panel-title { font-size: 1.2em; }
         .action-item { padding: 12px; }
         .action-label { font-size: 1em; }
-        .request-summary-item { flex-direction: column; align-items: stretch; }
-        .request-status-area { text-align: left; margin-top: 10px; }
+        .request-summary-item, .message-summary-item { flex-direction: column; align-items: stretch; }
+        .request-status-area, .message-actions { text-align: left; margin-top: 10px; }
+        .pending-actions { justify-content: flex-start; }
         .professional-table { font-size: 0.9em; }
-         /* Consider stacked table for very small screens if needed */
     }
-
 </style>
 {% endblock %}

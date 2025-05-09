@@ -14,12 +14,12 @@ import uuid # For unique filenames
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.urandom(24)
 app.config['DATABASE'] = os.path.join(app.instance_path, 'users.db')
-# Configuration for file uploads
-app.config['UPLOAD_FOLDER'] = os.path.join(app.instance_path, 'uploads') # Store uploads in instance/uploads
-app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16 MB max upload size
-ALLOWED_EXTENSIONS = {'txt', 'pdf', 'png', 'jpg', 'jpeg', 'gif', 'doc', 'docx', 'xls', 'xlsx'}
-app.config['UPLOAD_FOLDER'] = os.path.join(app.instance_path, 'uploads')
 
+# Configuration for file uploads
+app.config['UPLOAD_FOLDER'] = os.path.join(app.instance_path, 'uploads') # CORRECTED LINE
+
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16 MB max upload size
+ALLOWED_EXTENSIONS = {'pdf', 'png', 'jpg', 'jpeg', 'doc', 'docx', 'xls', 'xlsx'}
 
 # Define department options globally or pass from route
 DEPARTMENT_CHOICES = ["Human Resources", "IT", "Marketing", "Sales", "Operations", "Finance", "Workers"]
@@ -30,9 +30,9 @@ GENDER_CHOICES = ["Male", "Female", "Other", "Prefer not to say"]
 def get_db():
     if 'db' not in g:
         try:
-            os.makedirs(app.instance_path)
-        except OSError:
-            pass
+            os.makedirs(app.instance_path, exist_ok=True) # exist_ok=True handles existing directory
+        except OSError as e:
+            app.logger.error(f"Error creating instance path: {e}")
         g.db = sqlite3.connect(
             app.config['DATABASE'],
             detect_types=sqlite3.PARSE_DECLTYPES
@@ -47,6 +47,11 @@ def close_db(e=None):
 
 def init_db():
     db = get_db()
+    # Ensure instance path exists before trying to open schema.sql from app's resource location
+    try:
+        os.makedirs(app.instance_path, exist_ok=True)
+    except OSError:
+        pass # Should not happen with exist_ok=True
     with app.open_resource('schema.sql', mode='r') as f:
         db.cursor().executescript(f.read())
     db.commit()
@@ -80,53 +85,50 @@ def adapt_datetime_iso(val):
 
 def convert_datetime_iso(val):
     """Convert ISO 8601_datetime_string to datetime.datetime object."""
+    if not val: return None # Handle None or empty bytes
+    val_str = val.decode()
     try:
-        # val is bytes, so decode first
-        return datetime.fromisoformat(val.decode())
+        return datetime.fromisoformat(val_str)
     except (ValueError, AttributeError):
-        # Handle cases where val might already be a datetime or None, or invalid format
-        # This part might need adjustment based on exact string formats from your DB
-        try: # Try common SQLite format if fromisoformat fails
-            return datetime.strptime(val.decode(), "%Y-%m-%d %H:%M:%S.%f")
+        try:
+            return datetime.strptime(val_str, "%Y-%m-%d %H:%M:%S.%f")
         except (ValueError, AttributeError):
             try:
-                return datetime.strptime(val.decode(), "%Y-%m-%d %H:%M:%S")
+                return datetime.strptime(val_str, "%Y-%m-%d %H:%M:%S")
             except (ValueError, AttributeError):
-                return None # Or raise an error, or return the original string
+                app.logger.warning(f"Could not parse datetime string: {val_str}")
+                return None
+
 # Ensure upload folder exists
 try:
-    os.makedirs(app.config['UPLOAD_FOLDER'])
+    os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True) # Added exist_ok=True
 except OSError:
-    pass # Folder already exists
+    pass
 
 def allowed_file(filename):
-    print(f"--- Debug: allowed_file called with filename: '{filename}'") # DEBUG
+    if not filename: # Handle empty filename
+        return False
     has_dot = '.' in filename
-    print(f"--- Debug: Filename has dot: {has_dot}") # DEBUG
     if not has_dot:
         return False
     ext_parts = filename.rsplit('.', 1)
-    print(f"--- Debug: rsplit result: {ext_parts}") # DEBUG
-    if len(ext_parts) < 2: # Should not happen if has_dot is true, but good check
-        print(f"--- Debug: rsplit did not produce enough parts for filename '{filename}'") # DEBUG
+    if len(ext_parts) < 2:
         return False
     ext = ext_parts[1].lower()
-    print(f"--- Debug: Extracted extension: '{ext}'") # DEBUG
     is_allowed = ext in ALLOWED_EXTENSIONS
-    print(f"--- Debug: Is extension '{ext}' in ALLOWED_EXTENSIONS? {is_allowed}") # DEBUG
     return is_allowed
 
 
 sqlite3.register_adapter(datetime, adapt_datetime_iso)
-sqlite3.register_converter("DATETIME", convert_datetime_iso) # Use with detect_types
-sqlite3.register_converter("timestamp", convert_datetime_iso) # Common alternative name
+sqlite3.register_converter("DATETIME", convert_datetime_iso)
+sqlite3.register_converter("timestamp", convert_datetime_iso)
 
 
 # --- Authentication Decorators ---
 def login_required(view):
     @wraps(view)
     def wrapped_view(**kwargs):
-        if g.user is None:
+        if getattr(g, 'user', None) is None: # Safer check
             flash('Please log in to access this page.', 'error')
             return redirect(url_for('login', next=request.url))
         return view(**kwargs)
@@ -135,7 +137,8 @@ def login_required(view):
 def admin_required(view):
     @wraps(view)
     def wrapped_view(**kwargs):
-        if not g.user or not g.user['is_admin']:
+        current_user = getattr(g, 'user', None) # Safer check
+        if not current_user or not current_user['is_admin']:
             flash('You do not have permission to access this page.', 'error')
             return redirect(url_for('dashboard'))
         return view(**kwargs)
@@ -145,10 +148,9 @@ def admin_required(view):
 @app.before_request
 def load_logged_in_user():
     user_id = session.get('user_id')
-    g.user = None
+    g.user = None # Always initialize g.user to None
     if user_id is not None:
         db = get_db()
-        # Added full_name, gender, department to g.user for potential use
         g.user = db.execute(
             'SELECT id, username, is_admin, full_name, gender, department FROM users WHERE id = ?', (user_id,)
         ).fetchone()
@@ -166,7 +168,7 @@ def index():
 
 @app.route('/register', methods=('GET', 'POST'))
 def register():
-    if g.user:
+    if getattr(g, 'user', None): # Safer check
         flash("You are already logged in. Logout to register a new account.", "info")
         return redirect(url_for('dashboard'))
 
@@ -192,7 +194,7 @@ def register():
                 db.commit()
                 flash('Registration successful! Please log in.', 'success')
                 return redirect(url_for('login'))
-            except db.IntegrityError:
+            except db.IntegrityError: # More specific error
                 error = f"User '{username}' is already registered (database integrity error)."
             except Exception as e:
                 app.logger.error(f"Registration error: {e}")
@@ -200,14 +202,14 @@ def register():
         
         if error:
             flash(error, 'error')
-        # Re-render register page on error to show flashed messages and retain form data if desired
+        # Re-render register page on error
         return render_template('register.html') 
 
     return render_template('register.html')
 
 @app.route('/login', methods=('GET', 'POST'))
 def login():
-    if g.user:
+    if getattr(g, 'user', None): # Safer check
         flash("You are already logged in.", "info")
         return redirect(url_for('dashboard'))
 
@@ -231,21 +233,25 @@ def login():
             return redirect(next_url or url_for('dashboard'))
         
         flash(error, 'error')
-        # On login failure, redirect to index (where login form is) or dedicated login page
-        return redirect(url_for('index')) 
+        # On login failure, re-render login page to show error
+        return render_template('login.html') 
 
-    return render_template('login.html') # For GET request to /login
+    return render_template('login.html') # For GET request
 
 @app.route('/dashboard')
 @login_required
 def dashboard():
-    if g.user['is_admin']:
+    current_user = getattr(g, 'user', None) # Ensure g.user is accessed safely
+    if not current_user: # Should be caught by @login_required, but defensive
+        return redirect(url_for('login'))
+
+    if current_user['is_admin']:
         db = get_db()
         all_users = db.execute(
             'SELECT id, username, is_admin, full_name, gender, department FROM users ORDER BY username'
         ).fetchall()
         unread_messages_count = db.execute(
-            'SELECT COUNT(id) FROM messages WHERE is_read = 0'
+            'SELECT COUNT(id) FROM messages WHERE is_read = 0' # Assuming admin is recipient for all
         ).fetchone()[0]
         pending_requests_count = db.execute(
             "SELECT COUNT(id) FROM requests WHERE status = 'pending'"
@@ -255,55 +261,93 @@ def dashboard():
                                unread_messages_count=unread_messages_count,
                                pending_requests_count=pending_requests_count)
     else:
-        # This is the part for the regular user
+        # --- Regular User Dashboard Logic ---
         db = get_db()
+
+        # 1. Fetch User's Submitted Requests
         user_requests_raw = db.execute(
             """SELECT id, request_type, details, status, submitted_at, admin_notes
                FROM requests
                WHERE user_id = ?
                ORDER BY submitted_at DESC""",
-            (g.user['id'],)
+            (current_user['id'],)
         ).fetchall()
-
         user_requests_processed = []
         if user_requests_raw:
             for req_row in user_requests_raw:
                 req_dict = dict(req_row)
-                try:
-                    if isinstance(req_dict['submitted_at'], str):
-                        dt_obj = datetime.strptime(req_dict['submitted_at'], '%Y-%m-%d %H:%M:%S.%f')
-                    elif isinstance(req_dict['submitted_at'], datetime):
-                        dt_obj = req_dict['submitted_at']
-                    else:
-                        dt_obj = None
-                except ValueError:
+                # Robust timestamp conversion
+                submitted_at_val = req_dict.get('submitted_at')
+                if isinstance(submitted_at_val, datetime):
+                    req_dict['submitted_at'] = submitted_at_val
+                elif isinstance(submitted_at_val, str):
                     try:
-                        if isinstance(req_dict['submitted_at'], str):
-                            dt_obj = datetime.strptime(req_dict['submitted_at'], '%Y-%m-%d %H:%M:%S')
-                        else:
-                            dt_obj = req_dict['submitted_at']
-                    except ValueError as e:
-                        app.logger.error(f"Error parsing user_request submitted_at string '{req_dict['submitted_at']}': {e}")
-                        dt_obj = None
-                req_dict['submitted_at'] = dt_obj
+                        req_dict['submitted_at'] = datetime.fromisoformat(submitted_at_val.replace('Z', '+00:00'))
+                    except ValueError:
+                        try:
+                            req_dict['submitted_at'] = datetime.strptime(submitted_at_val, '%Y-%m-%d %H:%M:%S.%f')
+                        except ValueError:
+                            try:
+                                req_dict['submitted_at'] = datetime.strptime(submitted_at_val, '%Y-%m-%d %H:%M:%S')
+                            except ValueError as e_parse:
+                                app.logger.error(f"Error parsing user_request submitted_at string '{submitted_at_val}': {e_parse}")
+                                req_dict['submitted_at'] = None
+                else:
+                    req_dict['submitted_at'] = None
                 user_requests_processed.append(req_dict)
 
-        return render_template('dashboard_user.html', user_requests=user_requests_processed) # <<< ENSURE THIS RETURN IS HERE
+        # 2. Fetch User's Sent Messages
+        user_messages_raw = db.execute(
+            """SELECT m.id, m.sender_id, m.subject, m.body, m.timestamp, m.is_read,
+                      (SELECT COUNT(a.id) FROM attachments a WHERE a.message_id = m.id) as attachment_count
+               FROM messages m
+               WHERE m.sender_id = ?
+               ORDER BY m.timestamp DESC""",
+            (g.user['id'],) # Use g.user here as current_user is already established
+        ).fetchall()
+
+        user_messages_processed = []
+        if user_messages_raw:
+            for msg_row in user_messages_raw:
+                msg_dict = dict(msg_row)
+                timestamp_val = msg_dict.get('timestamp')
+                if isinstance(timestamp_val, datetime):
+                    msg_dict['timestamp'] = timestamp_val
+                elif isinstance(timestamp_val, str):
+                    try:
+                        msg_dict['timestamp'] = datetime.fromisoformat(timestamp_val.replace('Z', '+00:00'))
+                    except ValueError:
+                        try:
+                            msg_dict['timestamp'] = datetime.strptime(timestamp_val, '%Y-%m-%d %H:%M:%S.%f')
+                        except ValueError:
+                            try:
+                                msg_dict['timestamp'] = datetime.strptime(timestamp_val, '%Y-%m-%d %H:%M:%S')
+                            except ValueError as e_parse:
+                                app.logger.error(f"Error parsing user_message timestamp string '{timestamp_val}': {e_parse}")
+                                msg_dict['timestamp'] = None
+                else:
+                    msg_dict['timestamp'] = None
+                user_messages_processed.append(msg_dict)
+
+        return render_template('dashboard_user.html',
+                               user_requests=user_requests_processed,
+                               user_messages=user_messages_processed)
 
 @app.route('/logout')
+@login_required # Ensure user is logged in to log out
 def logout():
     session.clear()
     flash('You have been logged out.', 'success')
     return redirect(url_for('index'))
 
 # --- Admin User Management Routes ---
-@app.route('/admin/users/create', methods=['GET', 'POST']) # This line defines the route
+@app.route('/admin/users/create', methods=['GET', 'POST'])
 @login_required
 @admin_required
-def admin_create_user(): # This function name is the endpoint 'admin_create_user'
+def admin_create_user():
     if request.method == 'POST':
         username = request.form.get('username', '').strip()
-        password = request.form.get('password') # No strip, password can have spaces
+        password = request.form.get('password')
         is_admin = 'is_admin' in request.form
         full_name = request.form.get('full_name', '').strip()
         gender = request.form.get('gender')
@@ -312,16 +356,11 @@ def admin_create_user(): # This function name is the endpoint 'admin_create_user
         db = get_db()
         error = None
 
-        if not username:
-            error = 'Username is required.'
-        elif not password: # Password is required for new user
-            error = 'Password is required.'
-        elif not full_name:
-            error = 'Full Name is required.'
-        elif gender and gender not in GENDER_CHOICES: # Validate against choices
-            error = 'Invalid gender selected.'
-        elif department and department not in DEPARTMENT_CHOICES: # Validate against choices
-            error = 'Invalid department selected.'
+        if not username: error = 'Username is required.'
+        elif not password: error = 'Password is required.'
+        elif not full_name: error = 'Full Name is required.'
+        elif gender and gender not in GENDER_CHOICES: error = 'Invalid gender selected.'
+        elif department and department not in DEPARTMENT_CHOICES: error = 'Invalid department selected.'
         elif db.execute('SELECT id FROM users WHERE username = ?', (username,)).fetchone():
             error = f"User '{username}' already exists."
 
@@ -335,24 +374,19 @@ def admin_create_user(): # This function name is the endpoint 'admin_create_user
                 )
                 db.commit()
                 flash(f'User {username} ({full_name}) created successfully.', 'success')
-                return redirect(url_for('dashboard')) # Or wherever your admin user list is
+                return redirect(url_for('dashboard'))
             except Exception as e:
                 db.rollback()
                 app.logger.error(f"Error creating user: {e}")
                 error = "An unexpected error occurred while creating the user."
         
-        # If error occurred, flash it and re-render the form (values will be repopulated by request.form in template)
-        if error:
-            flash(error, 'error')
+        if error: flash(error, 'error')
     
-    # For GET request or if POST had an error, pass choices and form data to template
-    # request.form will be empty on GET, but will have submitted values on POST error
     return render_template('admin_user_form.html',
                            action="Create",
-                           user=None, # No existing user data for create form
+                           user=None,
                            department_choices=DEPARTMENT_CHOICES,
                            gender_choices=GENDER_CHOICES,
-                           # Pass request.form to help repopulate fields on error
                            form_data=request.form if request.method == 'POST' else {})
 
 @app.route('/admin/users/update/<int:user_id>', methods=['GET', 'POST'])
@@ -360,14 +394,13 @@ def admin_create_user(): # This function name is the endpoint 'admin_create_user
 @admin_required
 def admin_update_user(user_id):
     db = get_db()
-    # Fetch all relevant fields for the user being updated
     user_to_update = db.execute(
         'SELECT id, username, is_admin, full_name, gender, department FROM users WHERE id = ?', (user_id,)
     ).fetchone()
 
     if not user_to_update:
         flash('User not found.', 'error')
-        return redirect(url_for('dashboard')) # Or admin user list page
+        return redirect(url_for('dashboard'))
 
     if request.method == 'POST':
         new_password = request.form.get('password')
@@ -380,12 +413,6 @@ def admin_update_user(user_id):
         if not full_name: error = 'Full Name is required.'
         elif gender and gender not in GENDER_CHOICES: error = 'Invalid gender selected.'
         elif department and department not in DEPARTMENT_CHOICES: error = 'Invalid department selected.'
-        # Username change is typically not allowed or handled with more care due to uniqueness
-        # current_username = request.form.get('username')
-        # if user_to_update['username'] != current_username and \
-        #    db.execute('SELECT id FROM users WHERE username = ? AND id != ?', (current_username, user_id)).fetchone():
-        #     error = f"Username {current_username} already taken."
-
 
         if error is None:
             query_parts = ["is_admin = ?", "full_name = ?", "gender = ?", "department = ?"]
@@ -395,23 +422,21 @@ def admin_update_user(user_id):
                 query_parts.append("password_hash = ?")
                 params.append(generate_password_hash(new_password))
             
-            params.append(user_id) # For the WHERE clause
+            params.append(user_id)
             query = f"UPDATE users SET {', '.join(query_parts)} WHERE id = ?"
             
             try:
                 db.execute(query, tuple(params))
                 db.commit()
                 flash(f'User {user_to_update["username"]} updated successfully.', 'success')
-                return redirect(url_for('dashboard')) # Or admin user list page
+                return redirect(url_for('dashboard'))
             except Exception as e:
                 db.rollback()
                 app.logger.error(f"Error updating user: {e}")
                 error = "An unexpected error occurred while updating the user."
 
-        if error:
-            flash(error, 'error')
+        if error: flash(error, 'error')
     
-    # For GET request or if POST had an error
     return render_template('admin_user_form.html',
                            action="Update",
                            user=user_to_update,
@@ -423,13 +448,25 @@ def admin_update_user(user_id):
 @login_required
 @admin_required
 def admin_delete_user(user_id):
-    if g.user['id'] == user_id:
+    current_user = getattr(g, 'user', None)
+    if current_user and current_user['id'] == user_id:
         flash("You cannot delete yourself.", "error")
         return redirect(url_for('dashboard'))
     
     db = get_db()
-    # Consider what to do with messages/requests from/to this user (cascade, nullify, restrict)
-    # For simplicity, let's delete related items. Add FOREIGN KEY ON DELETE CASCADE in schema for robust handling.
+    # ON DELETE CASCADE in schema.sql should handle attachments if messages are deleted.
+    # First, get message_ids for messages sent by this user to delete their attachments
+    messages_by_user = db.execute('SELECT id FROM messages WHERE sender_id = ?', (user_id,)).fetchall()
+    for msg in messages_by_user:
+        attachments = db.execute('SELECT stored_filename FROM attachments WHERE message_id = ?', (msg['id'],)).fetchall()
+        for att in attachments:
+            if att['stored_filename'] and os.path.exists(os.path.join(app.config['UPLOAD_FOLDER'], att['stored_filename'])):
+                try:
+                    os.remove(os.path.join(app.config['UPLOAD_FOLDER'], att['stored_filename']))
+                except OSError as e:
+                    app.logger.error(f"Error deleting attachment file {att['stored_filename']} for user {user_id}: {e}")
+        # Attachments table has ON DELETE CASCADE for message_id, so they'll be removed when message is.
+
     db.execute('DELETE FROM messages WHERE sender_id = ?', (user_id,))
     db.execute('DELETE FROM requests WHERE user_id = ?', (user_id,))
     db.execute('DELETE FROM users WHERE id = ?', (user_id,))
@@ -438,107 +475,77 @@ def admin_delete_user(user_id):
     return redirect(url_for('dashboard'))
 
 # --- Messaging Routes ---
-
-# app.py
-
-# ... (imports and other setup) ...
-
 @app.route('/messages/send', methods=['GET', 'POST'])
 @login_required
 def send_message():
-    if request.method == 'POST':
-        print("--- Debug: POST request received for /messages/send ---") # DEBUG
+    current_user = getattr(g, 'user', None)
+    if not current_user: return redirect(url_for('login')) # Should be caught by @login_required
 
-        # Attempt to get form data
+    prefill_subject = ''
+    if request.method == 'POST':
+        prefill_subject = request.form.get('subject', '') # Keep prefill for errors
         try:
             subject = request.form['subject']
             body = request.form['body']
-            print(f"--- Debug: Subject from form: '{subject}'") # DEBUG
-            print(f"--- Debug: Body from form: '{body}' (first 50 chars: {body[:50]})") # DEBUG
         except KeyError as ke:
-            app.logger.error(f"KeyError accessing form data: {ke}")
+            app.logger.error(f"KeyError accessing form data in send_message: {ke}")
             flash(f"Missing form field: {ke}. Please ensure all fields are filled.", "error")
-            return render_template('send_message.html', prefill_subject=request.form.get('subject', '')) # Re-render with error
+            return render_template('send_message.html', prefill_subject=prefill_subject)
 
         attachment = request.files.get('attachment')
-        error = None # Initialize error AFTER getting subject and body
+        error = None
 
-        # Removed redundant subject/body checks here as KeyError above would handle missing fields
-        # if not subject: error = "Subject is required." 
-        # elif not body: error = "Message body is required."
+        if not subject.strip(): error = "Subject is required." 
+        elif not body.strip(): error = "Message body is required."
 
         stored_filename = None
         original_filename_for_db = None
 
         if attachment and attachment.filename:
-            print(f"--- Debug: Received attachment.filename: '{attachment.filename}'")
             original_filename_from_secure = secure_filename(attachment.filename)
-            print(f"--- Debug: secure_filename output: '{original_filename_from_secure}'")
-
             if not original_filename_from_secure:
-                error = "Invalid attachment filename (was sanitized to empty)."
+                if not error: error = "Invalid attachment filename (was sanitized to empty)."
             elif allowed_file(original_filename_from_secure):
                 original_filename_for_db = original_filename_from_secure
-                print(f"--- Debug: File type IS allowed. original_filename_for_db: '{original_filename_for_db}'")
-                if '.' in original_filename_for_db:
-                    file_ext = original_filename_for_db.rsplit('.', 1)[1].lower()
-                else:
-                    file_ext = ""
-                print(f"--- Debug: Final file_ext for stored_filename: '{file_ext}'")
-
-                if file_ext or not error: 
-                    unique_id = uuid.uuid4().hex
-                    stored_filename = f"{unique_id}.{file_ext}" if file_ext else f"{unique_id}"
-                    try:
-                        attachment.save(os.path.join(app.config['UPLOAD_FOLDER'], stored_filename))
-                        print(f"--- Debug: File saved as {stored_filename}") # DEBUG
-                    except Exception as e:
-                        app.logger.error(f"File save error: {e}")
-                        error = "Could not save attachment. Please try again."
-                        stored_filename = None
-                        original_filename_for_db = None
+                file_ext = original_filename_from_secure.rsplit('.', 1)[1].lower() if '.' in original_filename_from_secure else ""
+                unique_id = uuid.uuid4().hex
+                stored_filename = f"{unique_id}.{file_ext}" if file_ext else unique_id
+                try:
+                    attachment.save(os.path.join(app.config['UPLOAD_FOLDER'], stored_filename))
+                except Exception as e:
+                    app.logger.error(f"File save error: {e}")
+                    if not error: error = "Could not save attachment. Please try again."
+                    stored_filename = None
+                    original_filename_for_db = None
             else:
-                error = "Invalid file type or filename. Allowed types are: " + ", ".join(sorted(list(ALLOWED_EXTENSIONS)))
+                if not error: error = "Invalid file type or filename. Allowed types: " + ", ".join(sorted(list(ALLOWED_EXTENSIONS)))
         
-        print(f"--- Debug: Before DB operations. Error: {error}, Subject: '{subject}', Body (len): {len(body) if 'body' in locals() else 'N/A'}") # DEBUG
-
         if error is None:
             db = get_db()
             cursor = db.cursor()
             try:
-                print("--- Debug: Attempting to insert into messages table ---") # DEBUG
-                # Ensure subject and body are indeed defined and accessible here
                 cursor.execute('INSERT INTO messages (sender_id, subject, body) VALUES (?, ?, ?)',
-                               (g.user['id'], subject, body)) # These must be defined
+                               (current_user['id'], subject, body))
                 message_id = cursor.lastrowid
-                print(f"--- Debug: Message inserted with ID: {message_id}") # DEBUG
-
                 if stored_filename and original_filename_for_db and message_id:
-                    print("--- Debug: Attempting to insert into attachments table ---") # DEBUG
                     cursor.execute('INSERT INTO attachments (message_id, original_filename, stored_filename) VALUES (?, ?, ?)',
                                    (message_id, original_filename_for_db, stored_filename))
-                    print("--- Debug: Attachment inserted.") # DEBUG
-                
                 db.commit()
-                print("--- Debug: DB commit successful.") # DEBUG
                 flash('Message sent successfully!', 'success')
                 return redirect(url_for('dashboard'))
             except Exception as e:
                 db.rollback()
                 app.logger.error(f"Message/Attachment DB error: {e}")
-                # The print below helps confirm if 'subject' was undefined when the exception occurred
-                print(f"--- Debug: Exception in DB block. Subject defined? {'subject' in locals()}. Body defined? {'body' in locals()}") # DEBUG
                 error = "An error occurred while sending the message."
                 if stored_filename and os.path.exists(os.path.join(app.config['UPLOAD_FOLDER'], stored_filename)):
-                    try:
-                        os.remove(os.path.join(app.config['UPLOAD_FOLDER'], stored_filename))
-                    except Exception as del_e:
-                        app.logger.error(f"Error deleting orphaned file {stored_filename}: {del_e}")
+                    try: os.remove(os.path.join(app.config['UPLOAD_FOLDER'], stored_filename))
+                    except Exception as del_e: app.logger.error(f"Error deleting orphaned file: {del_e}")
         
-        if error:
-            flash(error, 'error')
+        if error: flash(error, 'error')
 
-    return render_template('send_message.html', prefill_subject=request.form.get('subject', '')) # Use request.form.get for prefill
+    return render_template('send_message.html', prefill_subject=prefill_subject)
+
+
 @app.route('/admin/messages')
 @login_required
 @admin_required
@@ -554,23 +561,21 @@ def admin_view_messages():
     processed_messages = []
     for msg_row in messages_raw:
         msg_dict = dict(msg_row)
-        # Timestamp conversion logic (as implemented before)
-        try:
-            if isinstance(msg_dict['timestamp'], str):
-                dt_obj = datetime.strptime(msg_dict['timestamp'], '%Y-%m-%d %H:%M:%S.%f')
-            elif isinstance(msg_dict['timestamp'], datetime):
-                dt_obj = msg_dict['timestamp']
-            else: dt_obj = None
-        except ValueError:
-            try:
-                if isinstance(msg_dict['timestamp'], str): dt_obj = datetime.strptime(msg_dict['timestamp'], '%Y-%m-%d %H:%M:%S')
-                else: dt_obj = msg_dict['timestamp']
-            except ValueError as e:
-                app.logger.error(f"Error parsing message timestamp string '{msg_dict['timestamp']}': {e}")
-                dt_obj = None
-        msg_dict['timestamp'] = dt_obj
+        timestamp_val = msg_dict.get('timestamp')
+        if isinstance(timestamp_val, datetime):
+            msg_dict['timestamp'] = timestamp_val
+        elif isinstance(timestamp_val, str):
+            try: msg_dict['timestamp'] = datetime.fromisoformat(timestamp_val.replace('Z', '+00:00'))
+            except ValueError:
+                try: msg_dict['timestamp'] = datetime.strptime(timestamp_val, '%Y-%m-%d %H:%M:%S.%f')
+                except ValueError:
+                    try: msg_dict['timestamp'] = datetime.strptime(timestamp_val, '%Y-%m-%d %H:%M:%S')
+                    except ValueError as e_parse:
+                        app.logger.error(f"Error parsing admin_view_messages timestamp '{timestamp_val}': {e_parse}")
+                        msg_dict['timestamp'] = None
+        else:
+            msg_dict['timestamp'] = None
         
-        # Fetch attachments for this message
         attachments = db.execute('''
             SELECT id, original_filename, stored_filename
             FROM attachments
@@ -581,18 +586,38 @@ def admin_view_messages():
 
     return render_template('admin_view_messages.html', messages=processed_messages)
 
-# Route to serve uploaded files (for admins to download)
 @app.route('/uploads/<filename>')
 @login_required
-@admin_required # Or adjust permission as needed
 def uploaded_file(filename):
-    # Add extra security checks here if necessary (e.g., check if user has permission for this specific file)
-    # For now, only admins can access any file by its stored_filename
+    # Security: Check if the current user has permission to access this file.
+    # This is a simplified check; more robust logic might be needed depending on requirements.
+    current_user = getattr(g, 'user', None)
+    if not current_user:
+        flash("Authentication required.", "error")
+        return redirect(url_for('login'))
+
+    # Example: Allow admin to download any file.
+    # If users should download their own attachments, you'll need more complex logic
+    # to verify if the filename belongs to a message sent by or to them.
+    if not current_user['is_admin']:
+        # Check if this file belongs to a message sent by the current user
+        attachment_message = db.execute(
+            """SELECT m.sender_id FROM attachments a
+               JOIN messages m ON a.message_id = m.id
+               WHERE a.stored_filename = ?""", (filename,)
+        ).fetchone()
+        if not attachment_message or attachment_message['sender_id'] != current_user['id']:
+            flash("You do not have permission to access this file.", "error")
+            return redirect(url_for('dashboard'))
+    
     try:
-        return send_from_directory(app.config['UPLOAD_FOLDER'], filename, as_attachment=False) # as_attachment=True forces download
+        # Use as_attachment=True to force download, False to display in browser if possible
+        return send_from_directory(app.config['UPLOAD_FOLDER'], filename, as_attachment=True)
     except FileNotFoundError:
         flash("File not found.", "error")
-        return redirect(url_for('admin_view_messages'))
+        if current_user and current_user['is_admin']:
+            return redirect(url_for('admin_view_messages'))
+        return redirect(url_for('dashboard'))
 
 
 @app.route('/admin/messages/mark_read/<int:message_id>', methods=['POST'])
@@ -605,112 +630,151 @@ def admin_mark_message_read(message_id):
     flash('Message marked as read.', 'success')
     return redirect(url_for('admin_view_messages'))
 
-# --- User Request Routes (Payslip, Vacation) ---
+# --- USER Deletion routes (Stage 1) ---
+@app.route('/my_messages/<int:message_id>/delete', methods=['POST'])
+@login_required
+def delete_message_by_user(message_id):
+    db = get_db()
+    current_user = getattr(g, 'user', None)
+    if not current_user: return redirect(url_for('login'))
 
+    message = db.execute(
+        'SELECT id, sender_id, is_read FROM messages WHERE id = ?', (message_id,)
+    ).fetchone()
+
+    if message is None:
+        flash('Message not found.', 'error')
+    elif message['sender_id'] != current_user['id']:
+        flash('You do not have permission to delete this message.', 'error')
+    # Optional: Add condition: and not message['is_read']
+    # elif message['is_read']:
+    #     flash('Cannot delete a message that has been read by an admin.', 'info')
+    else:
+        try:
+            # ON DELETE CASCADE in schema should handle attachments
+            db.execute('DELETE FROM messages WHERE id = ?', (message_id,))
+            db.commit()
+            flash('Message and its attachments deleted successfully.', 'success')
+        except Exception as e:
+            db.rollback()
+            app.logger.error(f"Error deleting message by user: {e}")
+            flash('An error occurred while deleting the message.', 'error')
+            
+    return redirect(url_for('dashboard'))
+
+@app.route('/my_requests/<int:request_id>/delete', methods=['POST'])
+@login_required
+def delete_request_by_user(request_id):
+    db = get_db()
+    current_user = getattr(g, 'user', None)
+    if not current_user: return redirect(url_for('login'))
+
+    user_request = db.execute(
+        'SELECT id, user_id, status FROM requests WHERE id = ?', (request_id,)
+    ).fetchone()
+
+    if user_request is None: flash('Request not found.', 'error')
+    elif user_request['user_id'] != current_user['id']: flash('You do not have permission to delete this request.', 'error')
+    elif user_request['status'] != 'pending': flash('Only pending requests can be deleted.', 'info')
+    else:
+        try:
+            db.execute('DELETE FROM requests WHERE id = ?', (request_id,))
+            db.commit()
+            flash('Request deleted successfully.', 'success')
+        except Exception as e:
+            db.rollback()
+            app.logger.error(f"Error deleting request by user: {e}")
+            flash('An error occurred while deleting the request.', 'error')
+    return redirect(url_for('dashboard'))
+
+
+# --- User Request Routes (Payslip, Vacation) ---
 @app.route('/request/new', methods=['GET', 'POST'])
 @login_required
 def new_request_form():
-    request_type = request.args.get('type', 'payslip')
+    current_user = getattr(g, 'user', None)
+    if not current_user: return redirect(url_for('login'))
+
+    request_type_arg = request.args.get('type', 'payslip')
     error = None
+    form_data = request.form if request.method == 'POST' else {}
 
     if request.method == 'POST':
-        actual_request_type = request.form['request_type']
+        actual_request_type = form_data.get('request_type', request_type_arg)
         details = ""
 
         if actual_request_type == 'payslip':
-            month = request.form.get('payslip_month')
-            year = request.form.get('payslip_year')
-            if month and year:
-                details = f"Payslip for: {month} {year}"
-            else:
-                if not error: error = "Please select both month and year for the payslip request."
+            month = form_data.get('payslip_month')
+            year = form_data.get('payslip_year')
+            if month and year: details = f"Payslip for: {month} {year}"
+            else: error = "Please select both month and year for the payslip request."
         
         elif actual_request_type == 'vacation':
-            start_date_str = request.form.get('start_date')
-            end_date_str = request.form.get('end_date')
-            reason = request.form.get('vacation_reason', '').strip() # Optional reason field
+            start_date_str = form_data.get('start_date')
+            end_date_str = form_data.get('end_date')
+            reason = form_data.get('vacation_reason', '').strip()
 
             if not start_date_str or not end_date_str:
                 if not error: error = "Please select both a start and end date for your vacation."
             else:
                 try:
-                    # Convert to datetime objects for validation
                     start_date_obj = datetime.strptime(start_date_str, '%Y-%m-%d')
                     end_date_obj = datetime.strptime(end_date_str, '%Y-%m-%d')
-
                     if end_date_obj < start_date_obj:
                         if not error: error = "End date cannot be before the start date."
                     else:
-                        # Calculate duration (optional, but good for details)
                         duration = (end_date_obj - start_date_obj).days + 1
                         details = f"Vacation: {start_date_obj.strftime('%b %d, %Y')} to {end_date_obj.strftime('%b %d, %Y')} ({duration} day{'s' if duration != 1 else ''})."
-                        if reason:
-                            details += f" Reason: {reason}"
+                        if reason: details += f" Reason: {reason}"
                 except ValueError:
                     if not error: error = "Invalid date format submitted. Please use the calendar."
-        else: # Other request types (if any)
-            details = request.form.get('details', '').strip()
-
-        # Centralized validation for 'details' (after specific type processing)
-        if not details and not error: # If details string is still empty and no prior error
-            if actual_request_type == 'payslip': # This condition might be redundant now
-                 error = "Month and Year are required for the payslip request."
-            elif actual_request_type == 'vacation': # This condition might be redundant now
-                 error = "Start and End dates are required for the vacation request."
-            else:
-                 error = "Details for the request are required."
+        else:
+             details_from_form = form_data.get('details', '').strip()
+             if not details_from_form and not error : error = "Details for the request are required."
+             else: details = details_from_form
         
-        # ... (rest of POST logic: DB insertion, flash messages) ...
+        if not details and not error : # Fallback if specific type logic didn't set details
+            error = "Request details could not be determined. Please fill the form correctly."
+
         if error is None:
             db = get_db()
             try:
                 db.execute('INSERT INTO requests (user_id, request_type, details) VALUES (?, ?, ?)',
-                           (g.user['id'], actual_request_type, details))
+                           (current_user['id'], actual_request_type, details))
                 db.commit()
                 flash(f'{actual_request_type.capitalize()} request submitted successfully!', 'success')
                 return redirect(url_for('dashboard'))
             except Exception as e:
                 db.rollback()
                 app.logger.error(f"Error inserting request into DB: {e}")
-                error = "An unexpected error occurred while submitting your request. Please try again."
+                error = "An unexpected error occurred while submitting your request."
         
-        if error:
-            flash(error, 'error')
+        if error: flash(error, 'error')
 
-    # --- GET Request or re-render after POST error ---
-    form_title = ""
-    details_label = "" # Not used for payslip/vacation directly anymore
-    details_placeholder = "" # Not used for payslip/vacation directly anymore
-    icon_class = "fa-clipboard-list"
-    
+    form_title, icon_class = "", "fa-clipboard-list"
     current_year = datetime.utcnow().year
     years_for_select = list(range(current_year, current_year - 6, -1))
-    months_for_select = [
-        "January", "February", "March", "April", "May", "June",
-        "July", "August", "September", "October", "November", "December"
-    ]
+    months_for_select = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
 
-    if request_type == 'payslip':
-        form_title = "Request Payslip"
-        icon_class = "fa-file-invoice-dollar"
-    elif request_type == 'vacation':
-        form_title = "Request Vacation Time"
-        icon_class = "fa-plane-departure"
-        # details_label = "Reason (Optional)" # Label for the reason textarea
-        # details_placeholder = "e.g., Annual leave, Family event"
-    else:
+    final_request_type_for_template = form_data.get('request_type', request_type_arg)
+
+    if final_request_type_for_template == 'payslip':
+        form_title, icon_class = "Request Payslip", "fa-file-invoice-dollar"
+    elif final_request_type_for_template == 'vacation':
+        form_title, icon_class = "Request Vacation Time", "fa-plane-departure"
+    elif final_request_type_for_template : # If type is somehow invalid from POST/GET
         flash("Invalid request type specified.", "error")
-        return redirect(url_for('dashboard'))
+        return redirect(url_for('dashboard')) # Or show a generic form
 
     return render_template('new_request_form.html',
-                           request_type=request_type,
+                           request_type=final_request_type_for_template,
                            form_title=form_title,
-                           # details_label=details_label, # Pass if you have a general details field
-                           # details_placeholder=details_placeholder,
                            icon_class=icon_class,
-                           years_for_select=years_for_select, # For payslip
-                           months_for_select=months_for_select, # For payslip
-                           error=error)
+                           years_for_select=years_for_select,
+                           months_for_select=months_for_select,
+                           form_data=form_data, # Pass form data for repopulation
+                           error=error) # error is already flashed, but can be useful in template
+
 
 @app.route('/admin/requests')
 @login_required
@@ -727,23 +791,18 @@ def admin_view_requests():
     requests_processed = []
     for req_row in requests_raw:
         req_dict = dict(req_row)
-        try:
-            if isinstance(req_dict['submitted_at'], str):
-                dt_obj = datetime.strptime(req_dict['submitted_at'], '%Y-%m-%d %H:%M:%S.%f')
-            elif isinstance(req_dict['submitted_at'], datetime):
-                dt_obj = req_dict['submitted_at']
-            else:
-                dt_obj = None
-        except ValueError:
-            try:
-                if isinstance(req_dict['submitted_at'], str):
-                    dt_obj = datetime.strptime(req_dict['submitted_at'], '%Y-%m-%d %H:%M:%S')
-                else:
-                    dt_obj = req_dict['submitted_at']
-            except ValueError as e:
-                app.logger.error(f"Error parsing submitted_at string '{req_dict['submitted_at']}': {e}")
-                dt_obj = None
-        req_dict['submitted_at'] = dt_obj
+        submitted_at_val = req_dict.get('submitted_at')
+        if isinstance(submitted_at_val, datetime): req_dict['submitted_at'] = submitted_at_val
+        elif isinstance(submitted_at_val, str):
+            try: req_dict['submitted_at'] = datetime.fromisoformat(submitted_at_val.replace('Z', '+00:00'))
+            except ValueError:
+                try: req_dict['submitted_at'] = datetime.strptime(submitted_at_val, '%Y-%m-%d %H:%M:%S.%f')
+                except ValueError:
+                    try: req_dict['submitted_at'] = datetime.strptime(submitted_at_val, '%Y-%m-%d %H:%M:%S')
+                    except ValueError as e_parse:
+                        app.logger.error(f"Error parsing admin_view_requests submitted_at '{submitted_at_val}': {e_parse}")
+                        req_dict['submitted_at'] = None
+        else: req_dict['submitted_at'] = None
         requests_processed.append(req_dict)
 
     return render_template('admin_view_requests.html', requests=requests_processed)
@@ -752,8 +811,8 @@ def admin_view_requests():
 @login_required
 @admin_required
 def admin_update_request_status(request_id):
-    new_status = request.form['status']
-    admin_notes = request.form.get('admin_notes', '')
+    new_status = request.form.get('status')
+    admin_notes = request.form.get('admin_notes', '').strip()
     db = get_db()
 
     if new_status not in ['pending', 'approved', 'rejected']:
@@ -764,36 +823,109 @@ def admin_update_request_status(request_id):
         db.commit()
         flash('Request status updated.', 'success')
     return redirect(url_for('admin_view_requests'))
+@app.route('/admin/users/view/<int:user_id>')
+@login_required
+@admin_required
+def admin_view_user_profile(user_id):
+    db = get_db()
+    
+    # 1. Fetch User Details
+    user = db.execute(
+        'SELECT id, username, is_admin, full_name, gender, department FROM users WHERE id = ?', (user_id,)
+    ).fetchone()
+
+    if not user:
+        flash('User not found.', 'error')
+        return redirect(url_for('dashboard')) # Redirect to admin dashboard
+
+    # 2. Fetch Messages Sent BY this User
+    messages_sent_raw = db.execute('''
+        SELECT m.id, m.subject, m.body, m.timestamp, m.is_read,
+               (SELECT COUNT(a.id) FROM attachments a WHERE a.message_id = m.id) as attachment_count
+        FROM messages m
+        WHERE m.sender_id = ?
+        ORDER BY m.timestamp DESC
+    ''', (user_id,)).fetchall()
+
+    messages_sent_processed = []
+    for msg_row in messages_sent_raw:
+        msg_dict = dict(msg_row)
+        timestamp_val = msg_dict.get('timestamp')
+        if isinstance(timestamp_val, datetime):
+            msg_dict['timestamp'] = timestamp_val
+        elif isinstance(timestamp_val, str):
+            try: msg_dict['timestamp'] = datetime.fromisoformat(timestamp_val.replace('Z', '+00:00'))
+            except ValueError:
+                try: msg_dict['timestamp'] = datetime.strptime(timestamp_val, '%Y-%m-%d %H:%M:%S.%f')
+                except ValueError:
+                    try: msg_dict['timestamp'] = datetime.strptime(timestamp_val, '%Y-%m-%d %H:%M:%S')
+                    except ValueError as e_parse:
+                        app.logger.error(f"Error parsing message timestamp for user profile '{timestamp_val}': {e_parse}")
+                        msg_dict['timestamp'] = None
+        else: msg_dict['timestamp'] = None
+        messages_sent_processed.append(msg_dict)
+
+    # 3. Fetch Requests Made BY this User
+    requests_made_raw = db.execute('''
+        SELECT id, request_type, details, status, submitted_at, admin_notes
+        FROM requests
+        WHERE user_id = ?
+        ORDER BY submitted_at DESC
+    ''', (user_id,)).fetchall()
+    
+    requests_made_processed = []
+    for req_row in requests_made_raw:
+        req_dict = dict(req_row)
+        submitted_at_val = req_dict.get('submitted_at')
+        if isinstance(submitted_at_val, datetime): req_dict['submitted_at'] = submitted_at_val
+        elif isinstance(submitted_at_val, str):
+            try: req_dict['submitted_at'] = datetime.fromisoformat(submitted_at_val.replace('Z', '+00:00'))
+            except ValueError:
+                try: req_dict['submitted_at'] = datetime.strptime(submitted_at_val, '%Y-%m-%d %H:%M:%S.%f')
+                except ValueError:
+                    try: req_dict['submitted_at'] = datetime.strptime(submitted_at_val, '%Y-%m-%d %H:%M:%S')
+                    except ValueError as e_parse:
+                        app.logger.error(f"Error parsing request submitted_at for user profile '{submitted_at_val}': {e_parse}")
+                        req_dict['submitted_at'] = None
+        else: req_dict['submitted_at'] = None
+        requests_made_processed.append(req_dict)
+
+    return render_template('admin_user_profile.html',
+                           target_user=user,
+                           messages_sent=messages_sent_processed,
+                           requests_made=requests_made_processed)
+
+
 @app.template_filter()
 @pass_eval_context
 def nl2br(eval_ctx, value):
-    """Converts newlines in a string to HTML <br /> tags."""
-    if not value: # Handle None or empty string gracefully
-        return ""
-    # Escape the original value to prevent XSS if it's not already safe
-    # then replace \n with <br>. Markup ensures the <br> is not escaped.
+    if not value: return ""
     br = Markup("<br>\n")
-    result = escape(value).replace('\n', br)
+    str_value = str(value) if not isinstance(value, str) else value
+    processed_value = str_value
+    if eval_ctx.autoescape:
+        processed_value = escape(str_value)
+    result = processed_value.replace('\n', br)
     return Markup(result)
 
 
 # --- Main Execution ---
 if __name__ == '__main__':
-    # One-time database initialization if it doesn't exist or is empty
     db_path = app.config['DATABASE']
     instance_folder_exists = os.path.exists(app.instance_path)
     db_file_exists = os.path.exists(db_path)
 
     if not instance_folder_exists:
-        try:
-            os.makedirs(app.instance_path)
-        except OSError as e:
-            print(f"Error creating instance folder: {e}") # Should not happen if checking above
+        try: os.makedirs(app.instance_path, exist_ok=True)
+        except OSError as e: print(f"Error creating instance folder: {e}")
             
     if not db_file_exists or os.path.getsize(db_path) == 0:
-        with app.app_context(): # We need app context to call get_db() and open_resource
+        with app.app_context():
             print("Database not found or empty. Initializing...")
-            init_db()
-            print(f"Database initialized at {db_path}")
+            try:
+                init_db()
+                print(f"Database initialized at {db_path}")
+            except Exception as e_init:
+                print(f"Error during database initialization: {e_init}")
 
     app.run(debug=True)

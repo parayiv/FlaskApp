@@ -1,0 +1,216 @@
+<!-- templates/admin_user_profile.html -->
+{% extends 'base.html' %}
+
+{% block title %}Profile - {{ target_user.username }}{% endblock %}
+
+{% block content %}
+<div class="user-profile-container professional-dashboard">
+    <header class="page-header-section" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px;">
+        <h1 class="page-title">User Profile: {{ target_user.full_name or target_user.username }}</h1>
+        <a href="{{ url_for('dashboard') }}" class="btn btn-sm btn-outline-secondary">
+            <i class="fas fa-arrow-left"></i> Back to Admin Dashboard
+        </a>
+    </header>
+
+    <!-- User Information Panel -->
+    <section class="dashboard-panel user-info-panel">
+        <h2 class="panel-title"><i class="fas fa-id-card"></i> User Details</h2>
+        <div class="user-details-grid">
+            <div><strong>Username:</strong> {{ target_user.username }}</div>
+            <div><strong>Full Name:</strong> {{ target_user.full_name or '-' }}</div>
+            <div><strong>Department:</strong> {{ target_user.department or '-' }}</div>
+            <div><strong>Gender:</strong> {{ target_user.gender or '-' }}</div>
+            <div><strong>Administrator:</strong> 
+                <span class="status-badge {{ 'status-admin' if target_user.is_admin else 'status-user' }}">
+                    {{ "Yes" if target_user.is_admin else "No" }}
+                </span>
+            </div>
+            <div>
+                <a href="{{ url_for('admin_update_user', user_id=target_user.id) }}" class="btn btn-sm btn-outline-primary">
+                    <i class="fas fa-edit"></i> Edit User
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Messages Sent by User Panel -->
+    <section class="dashboard-panel user-messages-panel">
+        <h2 class="panel-title"><i class="fas fa-paper-plane"></i> Messages Sent by {{ target_user.username }}</h2>
+        {% if messages_sent %}
+            <div class="table-responsive-wrapper">
+                <table class="professional-table compact-table">
+                    <thead>
+                        <tr>
+                            <th>Subject</th>
+                            <th>Sent</th>
+                            <th>Attachments</th>
+                            <th>Read by Admin?</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for msg in messages_sent %}
+                        <tr>
+                            <td>{{ msg.subject|truncate(50) }}</td>
+                            <td>{% if msg.timestamp %}{{ msg.timestamp.strftime('%Y-%m-%d %H:%M') }}{% else %}N/A{% endif %}</td>
+                            <td>{{ msg.attachment_count if msg.attachment_count > 0 else '-' }}</td>
+                            <td>
+                                <span class="status-tag {{ 'status-read' if msg.is_read else 'status-unread' }}">
+                                    {{ "Yes" if msg.is_read else "No" }}
+                                </span>
+                            </td>
+                            <td>
+                                <a href="{{ url_for('admin_view_messages') }}#message-{{ msg.id }}" class="btn btn-xs btn-outline-info" title="View in Full Message List">
+                                    <i class="fas fa-eye"></i> View
+                                </a>
+                                {# Add delete for admin if needed, or other actions #}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <p class="panel-empty-state-compact"><i class="fas fa-envelope-open-text"></i> This user has not sent any messages.</p>
+        {% endif %}
+    </section>
+
+    <!-- Requests Made by User Panel -->
+    <section class="dashboard-panel user-requests-panel">
+        <h2 class="panel-title"><i class="fas fa-tasks"></i> Requests Made by {{ target_user.username }}</h2>
+        {% if requests_made %}
+            <div class="table-responsive-wrapper">
+                <table class="professional-table compact-table">
+                    <thead>
+                        <tr>
+                            <th>Type</th>
+                            <th>Details</th>
+                            <th>Submitted</th>
+                            <th>Status</th>
+                            <th>Admin Notes</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for req in requests_made %}
+                        <tr>
+                            <td>
+                                <i class="fas {% if req.request_type == 'payslip' %}fa-file-invoice-dollar{% elif req.request_type == 'vacation' %}fa-plane-departure{% else %}fa-clipboard-list{% endif %} fa-fw type-icon"></i>
+                                {{ req.request_type|capitalize }}
+                            </td>
+                            <td class="details-column">{{ req.details|truncate(60) }}</td>
+                            <td>{% if req.submitted_at %}{{ req.submitted_at.strftime('%Y-%m-%d %H:%M') }}{% else %}N/A{% endif %}</td>
+                            <td>
+                                <span class="status-tag status-{{ req.status|lower }}">
+                                    {{ req.status|capitalize }}
+                                </span>
+                            </td>
+                            <td class="notes-column">{{ req.admin_notes|truncate(50)|escape if req.admin_notes else '-' }}</td>
+                            <td>
+                                <a href="{{ url_for('admin_view_requests') }}#request-{{ req.id }}" class="btn btn-xs btn-outline-info" title="Manage in Full Request List">
+                                    <i class="fas fa-tasks"></i> Manage
+                                </a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <p class="panel-empty-state-compact"><i class="fas fa-folder-open"></i> This user has not made any requests.</p>
+        {% endif %}
+    </section>
+</div>
+
+<style>
+    .professional-dashboard { /* Re-use from user_dashboard if applicable */ }
+    .page-header-section .page-title { margin-bottom: 0; } /* From admin_view_requests */
+    .dashboard-panel {
+        background-color: var(--card-bg);
+        padding: 25px 30px;
+        border-radius: var(--border-radius-md);
+        box-shadow: var(--shadow-md);
+        border: 1px solid var(--border-color);
+        margin-bottom: 30px; /* Space between panels */
+    }
+    .panel-title { /* Re-use from existing dashboard styles */
+        font-family: var(--font-family-headings);
+        font-weight: 600;
+        font-size: 1.35em;
+        color: var(--text-color-headings);
+        margin-top: 0;
+        margin-bottom: 20px;
+        padding-bottom: 12px;
+        border-bottom: 1px solid var(--border-color);
+    }
+    .panel-title i { margin-right: 10px; color: var(--primary-color); }
+
+    .user-details-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); /* Responsive grid */
+        gap: 15px 25px;
+        font-size: 0.95em;
+    }
+    .user-details-grid div {
+        padding: 8px 0;
+        border-bottom: 1px dotted var(--border-color-light, #eee);
+    }
+    .user-details-grid div:last-child { border-bottom: none; }
+    .user-details-grid strong {
+        color: var(--text-color-dark);
+        min-width: 120px; /* Align keys */
+        display: inline-block;
+    }
+    .status-badge { /* From admin_dashboard.html */
+        padding: 4px 8px; border-radius: var(--border-radius-sm); font-size: 0.8em; font-weight: 600; color: white; display: inline-block;
+    }
+    .status-admin { background-color: var(--secondary-color); }
+    .status-user { background-color: var(--text-color-light); }
+
+
+    .compact-table th, .compact-table td {
+        padding: 8px 10px; /* More compact padding */
+        font-size: 0.88em;
+    }
+    .compact-table thead th {
+        background-color: #f8f9fa;
+        font-weight: 600;
+        font-size: 0.8em;
+    }
+    .btn-xs { /* Ensure this style is available from base.html or define here */
+        padding: .2rem .4rem;
+        font-size: .75rem;
+        line-height: 1.5;
+        border-radius: .2rem;
+    }
+    .btn-outline-info { /* Define if not in base.html */
+        color: var(--info-color, #17a2b8);
+        border-color: var(--info-color, #17a2b8);
+    }
+    .btn-outline-info:hover {
+        background-color: var(--info-color, #17a2b8);
+        color: white;
+    }
+    .status-tag { /* From user_dashboard.html */
+        display: inline-block; padding: 5px 12px; border-radius: 20px; font-size: 0.8em; font-weight: 600; color: white;
+    }
+    .status-tag.status-read { background-color: var(--success-color, #28a745); }
+    .status-tag.status-unread { background-color: var(--text-color-light, #6c757d); }
+    .status-tag.status-pending { background-color: #ffc107; color: #333; }
+    .status-tag.status-approved { background-color: #28a745; }
+    .status-tag.status-rejected { background-color: #dc3545; }
+
+    .panel-empty-state-compact {
+        text-align: center;
+        padding: 15px 0;
+        color: var(--text-color-light);
+        font-size: 0.9em;
+    }
+    .panel-empty-state-compact i {
+        margin-right: 8px;
+        color: var(--border-color);
+    }
+    .details-column, .notes-column { max-width: 200px; white-space: normal; word-break: break-word; }
+
+</style>
+{% endblock %}

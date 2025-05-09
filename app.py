@@ -1,18 +1,25 @@
-# app.py
 import sqlite3
 import os
-from flask import Flask, render_template, request, redirect, url_for, session, flash, g
+from flask import Flask, render_template, request, redirect, url_for, session, flash, g, send_from_directory
 from werkzeug.security import generate_password_hash, check_password_hash
+from werkzeug.utils import secure_filename # For secure file handling
 from functools import wraps
-import click # For CLI commands
-from datetime import datetime # For timestamp in footer
-from jinja2 import pass_eval_context # For custom filter
-from markupsafe import Markup, escape # For custom filter
+import click
+from datetime import datetime
+from jinja2 import pass_eval_context
+from markupsafe import Markup, escape
+import uuid # For unique filenames
 
 # --- App Configuration ---
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.urandom(24)
 app.config['DATABASE'] = os.path.join(app.instance_path, 'users.db')
+# Configuration for file uploads
+app.config['UPLOAD_FOLDER'] = os.path.join(app.instance_path, 'uploads') # Store uploads in instance/uploads
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16 MB max upload size
+ALLOWED_EXTENSIONS = {'txt', 'pdf', 'png', 'jpg', 'jpeg', 'gif', 'doc', 'docx', 'xls', 'xlsx'}
+app.config['UPLOAD_FOLDER'] = os.path.join(app.instance_path, 'uploads')
+
 
 # --- Database Helper Functions ---
 def get_db():
@@ -81,6 +88,29 @@ def convert_datetime_iso(val):
                 return datetime.strptime(val.decode(), "%Y-%m-%d %H:%M:%S")
             except (ValueError, AttributeError):
                 return None # Or raise an error, or return the original string
+# Ensure upload folder exists
+try:
+    os.makedirs(app.config['UPLOAD_FOLDER'])
+except OSError:
+    pass # Folder already exists
+
+def allowed_file(filename):
+    print(f"--- Debug: allowed_file called with filename: '{filename}'") # DEBUG
+    has_dot = '.' in filename
+    print(f"--- Debug: Filename has dot: {has_dot}") # DEBUG
+    if not has_dot:
+        return False
+    ext_parts = filename.rsplit('.', 1)
+    print(f"--- Debug: rsplit result: {ext_parts}") # DEBUG
+    if len(ext_parts) < 2: # Should not happen if has_dot is true, but good check
+        print(f"--- Debug: rsplit did not produce enough parts for filename '{filename}'") # DEBUG
+        return False
+    ext = ext_parts[1].lower()
+    print(f"--- Debug: Extracted extension: '{ext}'") # DEBUG
+    is_allowed = ext in ALLOWED_EXTENSIONS
+    print(f"--- Debug: Is extension '{ext}' in ALLOWED_EXTENSIONS? {is_allowed}") # DEBUG
+    return is_allowed
+
 
 sqlite3.register_adapter(datetime, adapt_datetime_iso)
 sqlite3.register_converter("DATETIME", convert_datetime_iso) # Use with detect_types
@@ -334,26 +364,107 @@ def admin_delete_user(user_id):
     return redirect(url_for('dashboard'))
 
 # --- Messaging Routes ---
+
+# app.py
+
+# ... (imports and other setup) ...
+
 @app.route('/messages/send', methods=['GET', 'POST'])
 @login_required
 def send_message():
     if request.method == 'POST':
-        subject = request.form['subject']
-        body = request.form['body']
-        error = None
-        if not subject: error = "Subject is required."
-        elif not body: error = "Message body is required."
+        print("--- Debug: POST request received for /messages/send ---") # DEBUG
+
+        # Attempt to get form data
+        try:
+            subject = request.form['subject']
+            body = request.form['body']
+            print(f"--- Debug: Subject from form: '{subject}'") # DEBUG
+            print(f"--- Debug: Body from form: '{body}' (first 50 chars: {body[:50]})") # DEBUG
+        except KeyError as ke:
+            app.logger.error(f"KeyError accessing form data: {ke}")
+            flash(f"Missing form field: {ke}. Please ensure all fields are filled.", "error")
+            return render_template('send_message.html', prefill_subject=request.form.get('subject', '')) # Re-render with error
+
+        attachment = request.files.get('attachment')
+        error = None # Initialize error AFTER getting subject and body
+
+        # Removed redundant subject/body checks here as KeyError above would handle missing fields
+        # if not subject: error = "Subject is required." 
+        # elif not body: error = "Message body is required."
+
+        stored_filename = None
+        original_filename_for_db = None
+
+        if attachment and attachment.filename:
+            print(f"--- Debug: Received attachment.filename: '{attachment.filename}'")
+            original_filename_from_secure = secure_filename(attachment.filename)
+            print(f"--- Debug: secure_filename output: '{original_filename_from_secure}'")
+
+            if not original_filename_from_secure:
+                error = "Invalid attachment filename (was sanitized to empty)."
+            elif allowed_file(original_filename_from_secure):
+                original_filename_for_db = original_filename_from_secure
+                print(f"--- Debug: File type IS allowed. original_filename_for_db: '{original_filename_for_db}'")
+                if '.' in original_filename_for_db:
+                    file_ext = original_filename_for_db.rsplit('.', 1)[1].lower()
+                else:
+                    file_ext = ""
+                print(f"--- Debug: Final file_ext for stored_filename: '{file_ext}'")
+
+                if file_ext or not error: 
+                    unique_id = uuid.uuid4().hex
+                    stored_filename = f"{unique_id}.{file_ext}" if file_ext else f"{unique_id}"
+                    try:
+                        attachment.save(os.path.join(app.config['UPLOAD_FOLDER'], stored_filename))
+                        print(f"--- Debug: File saved as {stored_filename}") # DEBUG
+                    except Exception as e:
+                        app.logger.error(f"File save error: {e}")
+                        error = "Could not save attachment. Please try again."
+                        stored_filename = None
+                        original_filename_for_db = None
+            else:
+                error = "Invalid file type or filename. Allowed types are: " + ", ".join(sorted(list(ALLOWED_EXTENSIONS)))
+        
+        print(f"--- Debug: Before DB operations. Error: {error}, Subject: '{subject}', Body (len): {len(body) if 'body' in locals() else 'N/A'}") # DEBUG
 
         if error is None:
             db = get_db()
-            db.execute('INSERT INTO messages (sender_id, subject, body) VALUES (?, ?, ?)',
-                       (g.user['id'], subject, body))
-            db.commit()
-            flash('Message sent to admin successfully!', 'success')
-            return redirect(url_for('dashboard'))
-        flash(error, 'error')
-    return render_template('send_message.html', prefill_subject="")
+            cursor = db.cursor()
+            try:
+                print("--- Debug: Attempting to insert into messages table ---") # DEBUG
+                # Ensure subject and body are indeed defined and accessible here
+                cursor.execute('INSERT INTO messages (sender_id, subject, body) VALUES (?, ?, ?)',
+                               (g.user['id'], subject, body)) # These must be defined
+                message_id = cursor.lastrowid
+                print(f"--- Debug: Message inserted with ID: {message_id}") # DEBUG
 
+                if stored_filename and original_filename_for_db and message_id:
+                    print("--- Debug: Attempting to insert into attachments table ---") # DEBUG
+                    cursor.execute('INSERT INTO attachments (message_id, original_filename, stored_filename) VALUES (?, ?, ?)',
+                                   (message_id, original_filename_for_db, stored_filename))
+                    print("--- Debug: Attachment inserted.") # DEBUG
+                
+                db.commit()
+                print("--- Debug: DB commit successful.") # DEBUG
+                flash('Message sent successfully!', 'success')
+                return redirect(url_for('dashboard'))
+            except Exception as e:
+                db.rollback()
+                app.logger.error(f"Message/Attachment DB error: {e}")
+                # The print below helps confirm if 'subject' was undefined when the exception occurred
+                print(f"--- Debug: Exception in DB block. Subject defined? {'subject' in locals()}. Body defined? {'body' in locals()}") # DEBUG
+                error = "An error occurred while sending the message."
+                if stored_filename and os.path.exists(os.path.join(app.config['UPLOAD_FOLDER'], stored_filename)):
+                    try:
+                        os.remove(os.path.join(app.config['UPLOAD_FOLDER'], stored_filename))
+                    except Exception as del_e:
+                        app.logger.error(f"Error deleting orphaned file {stored_filename}: {del_e}")
+        
+        if error:
+            flash(error, 'error')
+
+    return render_template('send_message.html', prefill_subject=request.form.get('subject', '')) # Use request.form.get for prefill
 @app.route('/admin/messages')
 @login_required
 @admin_required
@@ -366,36 +477,49 @@ def admin_view_messages():
         ORDER BY m.timestamp DESC
     ''').fetchall()
 
-    messages_processed = []
+    processed_messages = []
     for msg_row in messages_raw:
-        # Convert the dictionary-like Row object to a mutable dictionary
         msg_dict = dict(msg_row)
-        # Assuming the timestamp from SQLite is in 'YYYY-MM-DD HH:MM:SS' format
-        # Adjust the format string if your SQLite stores it differently
+        # Timestamp conversion logic (as implemented before)
         try:
-            if isinstance(msg_dict['timestamp'], str): # Check if it's a string
-                 # The format string below assumes microseconds might be present due to some SQLite versions/drivers
-                 # Try this first:
+            if isinstance(msg_dict['timestamp'], str):
                 dt_obj = datetime.strptime(msg_dict['timestamp'], '%Y-%m-%d %H:%M:%S.%f')
-            elif isinstance(msg_dict['timestamp'], datetime): # Already a datetime object
+            elif isinstance(msg_dict['timestamp'], datetime):
                 dt_obj = msg_dict['timestamp']
-            else: # If it's neither, perhaps log an error or handle as an unknown format
-                dt_obj = None # Or a default datetime
+            else: dt_obj = None
         except ValueError:
-            # If the first format fails (e.g., no microseconds), try without:
             try:
-                if isinstance(msg_dict['timestamp'], str):
-                    dt_obj = datetime.strptime(msg_dict['timestamp'], '%Y-%m-%d %H:%M:%S')
-                else:
-                    dt_obj = msg_dict['timestamp'] # Or handle as above
+                if isinstance(msg_dict['timestamp'], str): dt_obj = datetime.strptime(msg_dict['timestamp'], '%Y-%m-%d %H:%M:%S')
+                else: dt_obj = msg_dict['timestamp']
             except ValueError as e:
-                app.logger.error(f"Error parsing timestamp string '{msg_dict['timestamp']}': {e}")
-                dt_obj = None # Or set to the original string to display as is, or a default datetime
+                app.logger.error(f"Error parsing message timestamp string '{msg_dict['timestamp']}': {e}")
+                dt_obj = None
+        msg_dict['timestamp'] = dt_obj
+        
+        # Fetch attachments for this message
+        attachments = db.execute('''
+            SELECT id, original_filename, stored_filename
+            FROM attachments
+            WHERE message_id = ?
+        ''', (msg_dict['id'],)).fetchall()
+        msg_dict['attachments'] = attachments
+        processed_messages.append(msg_dict)
 
-        msg_dict['timestamp'] = dt_obj # Replace the string with the datetime object
-        messages_processed.append(msg_dict)
+    return render_template('admin_view_messages.html', messages=processed_messages)
 
-    return render_template('admin_view_messages.html', messages=messages_processed)
+# Route to serve uploaded files (for admins to download)
+@app.route('/uploads/<filename>')
+@login_required
+@admin_required # Or adjust permission as needed
+def uploaded_file(filename):
+    # Add extra security checks here if necessary (e.g., check if user has permission for this specific file)
+    # For now, only admins can access any file by its stored_filename
+    try:
+        return send_from_directory(app.config['UPLOAD_FOLDER'], filename, as_attachment=False) # as_attachment=True forces download
+    except FileNotFoundError:
+        flash("File not found.", "error")
+        return redirect(url_for('admin_view_messages'))
+
 
 @app.route('/admin/messages/mark_read/<int:message_id>', methods=['POST'])
 @login_required
@@ -408,43 +532,111 @@ def admin_mark_message_read(message_id):
     return redirect(url_for('admin_view_messages'))
 
 # --- User Request Routes (Payslip, Vacation) ---
+
 @app.route('/request/new', methods=['GET', 'POST'])
 @login_required
 def new_request_form():
     request_type = request.args.get('type', 'payslip')
+    error = None
 
     if request.method == 'POST':
         actual_request_type = request.form['request_type']
-        details = request.form['details']
-        error = None
+        details = ""
 
-        if not details: error = "Details for the request are required."
+        if actual_request_type == 'payslip':
+            month = request.form.get('payslip_month')
+            year = request.form.get('payslip_year')
+            if month and year:
+                details = f"Payslip for: {month} {year}"
+            else:
+                if not error: error = "Please select both month and year for the payslip request."
+        
+        elif actual_request_type == 'vacation':
+            start_date_str = request.form.get('start_date')
+            end_date_str = request.form.get('end_date')
+            reason = request.form.get('vacation_reason', '').strip() # Optional reason field
 
+            if not start_date_str or not end_date_str:
+                if not error: error = "Please select both a start and end date for your vacation."
+            else:
+                try:
+                    # Convert to datetime objects for validation
+                    start_date_obj = datetime.strptime(start_date_str, '%Y-%m-%d')
+                    end_date_obj = datetime.strptime(end_date_str, '%Y-%m-%d')
+
+                    if end_date_obj < start_date_obj:
+                        if not error: error = "End date cannot be before the start date."
+                    else:
+                        # Calculate duration (optional, but good for details)
+                        duration = (end_date_obj - start_date_obj).days + 1
+                        details = f"Vacation: {start_date_obj.strftime('%b %d, %Y')} to {end_date_obj.strftime('%b %d, %Y')} ({duration} day{'s' if duration != 1 else ''})."
+                        if reason:
+                            details += f" Reason: {reason}"
+                except ValueError:
+                    if not error: error = "Invalid date format submitted. Please use the calendar."
+        else: # Other request types (if any)
+            details = request.form.get('details', '').strip()
+
+        # Centralized validation for 'details' (after specific type processing)
+        if not details and not error: # If details string is still empty and no prior error
+            if actual_request_type == 'payslip': # This condition might be redundant now
+                 error = "Month and Year are required for the payslip request."
+            elif actual_request_type == 'vacation': # This condition might be redundant now
+                 error = "Start and End dates are required for the vacation request."
+            else:
+                 error = "Details for the request are required."
+        
+        # ... (rest of POST logic: DB insertion, flash messages) ...
         if error is None:
             db = get_db()
-            db.execute('INSERT INTO requests (user_id, request_type, details) VALUES (?, ?, ?)',
-                       (g.user['id'], actual_request_type, details))
-            db.commit()
-            flash(f'{actual_request_type.capitalize()} request submitted successfully!', 'success')
-            return redirect(url_for('dashboard'))
-        flash(error, 'error')
+            try:
+                db.execute('INSERT INTO requests (user_id, request_type, details) VALUES (?, ?, ?)',
+                           (g.user['id'], actual_request_type, details))
+                db.commit()
+                flash(f'{actual_request_type.capitalize()} request submitted successfully!', 'success')
+                return redirect(url_for('dashboard'))
+            except Exception as e:
+                db.rollback()
+                app.logger.error(f"Error inserting request into DB: {e}")
+                error = "An unexpected error occurred while submitting your request. Please try again."
+        
+        if error:
+            flash(error, 'error')
 
+    # --- GET Request or re-render after POST error ---
     form_title = ""
-    details_label = ""
+    details_label = "" # Not used for payslip/vacation directly anymore
+    details_placeholder = "" # Not used for payslip/vacation directly anymore
+    icon_class = "fa-clipboard-list"
+    
+    current_year = datetime.utcnow().year
+    years_for_select = list(range(current_year, current_year - 6, -1))
+    months_for_select = [
+        "January", "February", "March", "April", "May", "June",
+        "July", "August", "September", "October", "November", "December"
+    ]
+
     if request_type == 'payslip':
         form_title = "Request Payslip"
-        details_label = "Month/Year (e.g., March 2024)"
+        icon_class = "fa-file-invoice-dollar"
     elif request_type == 'vacation':
-        form_title = "Request Vacation"
-        details_label = "Start Date, End Date, and Reason"
+        form_title = "Request Vacation Time"
+        icon_class = "fa-plane-departure"
+        # details_label = "Reason (Optional)" # Label for the reason textarea
+        # details_placeholder = "e.g., Annual leave, Family event"
     else:
-        flash("Invalid request type.", "error")
+        flash("Invalid request type specified.", "error")
         return redirect(url_for('dashboard'))
 
     return render_template('new_request_form.html',
                            request_type=request_type,
                            form_title=form_title,
-                           details_label=details_label)
+                           # details_label=details_label, # Pass if you have a general details field
+                           # details_placeholder=details_placeholder,
+                           icon_class=icon_class,
+                           years_for_select=years_for_select, # For payslip
+                           months_for_select=months_for_select, # For payslip
+                           error=error)
 
 @app.route('/admin/requests')
 @login_required

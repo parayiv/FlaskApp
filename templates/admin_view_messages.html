@@ -1,32 +1,133 @@
+<!-- templates/admin_view_messages.html -->
 {% extends 'base.html' %}
 
 {% block title %}Admin - View Messages{% endblock %}
 
 {% block content %}
-<h1 class="page-title">Incoming Messages</h1>
-<a href="{{ url_for('dashboard') }}" class="subtle-link" style="margin-bottom:20px; display:inline-block;">« Back to Admin Dashboard</a>
+<div class="admin-messages-container">
+    <header class="panel-header" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+        <h1 class="page-title" style="margin-bottom:0;">Incoming Messages</h1>
+        <a href="{{ url_for('dashboard') }}" class="btn btn-sm btn-outline-primary">« Admin Dashboard</a>
+    </header>
 
-{% if messages %}
-    <ul style="list-style: none; padding: 0;">
-        {% for message in messages %}
-        <li style="border: 1px solid #ddd; margin-bottom: 15px; padding: 15px; border-radius: 5px; background-color: {{ '#fff' if message.is_read else '#f9f9f9' }};">
-            <p><strong>From:</strong> {{ message.sender_username }}</p>
-            <p><strong>Subject:</strong> {{ message.subject }}</p>
-            <p><strong>Received:</strong> {{ message.timestamp.strftime('%Y-%m-%d %H:%M') }}</p>
-            <div style="margin-top: 10px; margin-bottom: 10px; padding-left: 10px; border-left: 3px solid #eee;">
-                {{ message.body|nl2br }} {# nl2br filter to respect newlines #}
-            </div>
-            {% if not message.is_read %}
-            <form method="post" action="{{ url_for('admin_mark_message_read', message_id=message.id) }}" style="display:inline;">
-                <input type="submit" value="Mark as Read" class="btn btn-sm btn-info">
-            </form>
-            {% else %}
-            <span class="badge badge-success" style="background-color: #d4edda; color: #155724; padding: 5px 8px; border-radius: 3px;">Read</span>
-            {% endif %}
-        </li>
-        {% endfor %}
-    </ul>
-{% else %}
-    <p>No messages found.</p>
-{% endif %}
+    {% if messages %}
+        <ul class="messages-list">
+            {% for message in messages %}
+            <li class="message-item {% if not message.is_read %}message-unread{% endif %}">
+                <div class="message-header">
+                    <span class="sender-info">
+                        <i class="fas fa-user-circle"></i> From: <strong>{{ message.sender_username }}</strong>
+                    </span>
+                    <span class="timestamp">
+                        <i class="far fa-clock"></i>
+                        {% if message.timestamp %}{{ message.timestamp.strftime('%d %b %Y, %H:%M') }}{% else %}N/A{% endif %}
+                    </span>
+                </div>
+                <h3 class="message-subject">{{ message.subject }}</h3>
+                <div class="message-body">
+                    {{ message.body|nl2br }}
+                </div>
+
+                {% if message.attachments %}
+                <div class="message-attachments">
+                    <strong><i class="fas fa-paperclip"></i> Attachments:</strong>
+                    <ul>
+                        {% for att in message.attachments %}
+                        <li>
+                            <a href="{{ url_for('uploaded_file', filename=att.stored_filename) }}" target="_blank">
+                                <i class="fas {% if att.original_filename.endswith('.pdf') %}fa-file-pdf{% elif att.original_filename.endswith(('.png', '.jpg', '.jpeg', '.gif')) %}fa-file-image{% elif att.original_filename.endswith(('.doc', '.docx')) %}fa-file-word{% elif att.original_filename.endswith(('.xls', '.xlsx')) %}fa-file-excel{% else %}fa-file-alt{% endif %}"></i>
+                                {{ att.original_filename }}
+                            </a>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+                {% endif %}
+
+                <div class="message-actions">
+                    {% if not message.is_read %}
+                    <form method="post" action="{{ url_for('admin_mark_message_read', message_id=message.id) }}" style="display:inline;">
+                        <button type="submit" class="btn btn-sm btn-outline-primary"><i class="fas fa-check"></i> Mark as Read</button>
+                    </form>
+                    {% else %}
+                    <span class="status-tag status-read"><i class="fas fa-check-double"></i> Read</span>
+                    {% endif %}
+                    {# Placeholder for reply button #}
+                    {# <a href="#" class="btn btn-sm btn-secondary"><i class="fas fa-reply"></i> Reply</a> #}
+                </div>
+            </li>
+            {% endfor %}
+        </ul>
+    {% else %}
+        <div class="panel-empty-state" style="background-color: var(--card-bg); padding: 30px; border-radius: var(--border-radius-md); box-shadow: var(--shadow-sm);">
+            <i class="fas fa-envelope-open fa-2x"></i>
+            <p>No messages found in the inbox.</p>
+        </div>
+    {% endif %}
+</div>
+<style>
+    .admin-messages-container { max-width: 900px; margin: 20px auto; }
+    .messages-list { list-style: none; padding: 0; }
+    .message-item {
+        background-color: var(--card-bg);
+        border: 1px solid var(--border-color);
+        border-radius: var(--border-radius-md);
+        margin-bottom: 20px;
+        padding: 20px 25px;
+        box-shadow: var(--shadow-sm);
+        transition: box-shadow 0.2s;
+    }
+    .message-item:hover { box-shadow: var(--shadow-md); }
+    .message-unread { border-left: 5px solid var(--secondary-color); }
+
+    .message-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 10px;
+        font-size: 0.9em;
+        color: var(--text-color-light);
+    }
+    .message-header i { margin-right: 5px; }
+    .sender-info strong { color: var(--text-color-dark); }
+
+    .message-subject {
+        font-family: var(--font-family-headings);
+        font-size: 1.25em;
+        font-weight: 600;
+        color: var(--text-color-headings);
+        margin: 0 0 10px 0;
+    }
+    .message-body {
+        font-size: 0.95em;
+        line-height: 1.7;
+        margin-bottom: 15px;
+        color: var(--text-color-dark);
+        padding-left: 10px;
+        border-left: 3px solid #e9ecef;
+    }
+    .message-attachments {
+        margin-top: 15px;
+        margin-bottom: 15px;
+        font-size: 0.9em;
+    }
+    .message-attachments strong i { color: var(--primary-color); }
+    .message-attachments ul { list-style: none; padding-left: 5px; margin-top: 5px;}
+    .message-attachments li a {
+        text-decoration: none;
+        color: var(--primary-color);
+        display: inline-flex; align-items: center;
+        padding: 3px 0;
+    }
+    .message-attachments li a:hover { text-decoration: underline; }
+    .message-attachments li i { margin-right: 8px; font-size: 1.1em; }
+
+    .message-actions { margin-top: 15px; text-align: right; }
+    .message-actions .btn-sm { font-size: 0.85em !important; padding: 6px 12px !important; }
+    .status-tag.status-read {
+        background-color: #e9ecef; color: var(--text-color-light);
+        padding: 5px 10px; border-radius: var(--border-radius-sm); font-size: 0.85em;
+    }
+    .status-tag.status-read i { margin-right: 5px; }
+</style>
 {% endblock %}

@@ -34,3 +34,13 @@ CREATE TABLE requests (
     admin_notes TEXT,
     FOREIGN KEY (user_id) REFERENCES users (id)
 );
+
+DROP TABLE IF EXISTS attachments;
+CREATE TABLE attachments (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    message_id INTEGER NOT NULL,
+    original_filename TEXT NOT NULL, -- Original name for display
+    stored_filename TEXT NOT NULL UNIQUE, -- Secured, unique name on disk
+    uploaded_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (message_id) REFERENCES messages (id) ON DELETE CASCADE -- If message is deleted, delete attachments
+);

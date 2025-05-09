@@ -1,23 +1,162 @@
+<!-- templates/send_message.html -->
 {% extends 'base.html' %}
 
-{% block title %}Send Message to Admin{% endblock %}
+{% block title %}Compose New Message{% endblock %}
 
 {% block content %}
-<div class="form-container" style="max-width: 600px; margin: 20px auto;">
-    <h2>Send a Message to Admin</h2>
-    <form method="post">
-        <div>
-            <label for="subject">Subject</label>
-            <input type="text" name="subject" id="subject" required value="{{ prefill_subject or request.form.subject or '' }}">
-        </div>
-        <div>
-            <label for="body">Message Body</label>
-            <textarea name="body" id="body" rows="6" required style="width: 100%; padding: 10px; margin-bottom: 15px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;">{{ request.form.body or '' }}</textarea>
-        </div>
-        <div>
-            <input type="submit" value="Send Message">
-        </div>
-    </form>
-     <p><a href="{{ url_for('dashboard') }}" class="subtle-link">Back to Dashboard</a></p>
+<div class="compose-message-container">
+    <div class="compose-form-card">
+        <header class="form-card-header">
+            <i class="fas fa-paper-plane header-icon"></i>
+            <h1 class="page-title" style="margin-bottom: 5px; font-size: 1.8em;">Send a Message</h1>
+            <p class="page-subtitle" style="margin-top: 0; font-size: 1em;">Communicate directly with an administrator.</p>
+        </header>
+
+        <form method="post" enctype="multipart/form-data" class="compose-form"> {# enctype is crucial for file uploads #}
+            <div class="form-group">
+                <label for="subject">Subject</label>
+                <input type="text" name="subject" id="subject" class="form-control" required value="{{ prefill_subject or request.form.subject or '' }}" placeholder="e.g., Question about recent policy update">
+            </div>
+
+            <div class="form-group">
+                <label for="body">Message Body</label>
+                <textarea name="body" id="body" rows="8" class="form-control" required placeholder="Type your message here...">{{ request.form.body or '' }}</textarea>
+            </div>
+
+            <div class="form-group attachment-group">
+                <label for="attachment" class="attachment-label">
+                    <i class="fas fa-paperclip"></i> Add Attachment (Optional)
+                </label>
+                <input type="file" name="attachment" id="attachment" class="file-input-custom">
+                <span class="file-name-display">No file chosen</span>
+                <small class="form-text text-muted">Max file size: 16MB. Allowed: txt, pdf, png, jpg, doc, xlsx etc.</small>
+            </div>
+
+            <div class="form-actions">
+                <a href="{{ url_for('dashboard') }}" class="btn btn-outline-primary btn-cancel">Cancel</a>
+                <button type="submit" class="btn btn-primary btn-send">
+                    <i class="fas fa-rocket"></i> Send Message
+                </button>
+            </div>
+        </form>
+    </div>
 </div>
+
+<style>
+    .compose-message-container {
+        max-width: 750px; /* Wider for better textarea experience */
+        margin: 20px auto;
+    }
+
+    .compose-form-card {
+        background-color: var(--card-bg);
+        padding: 30px 40px;
+        border-radius: var(--border-radius-md);
+        box-shadow: var(--shadow-md);
+        border-top: 5px solid var(--secondary-color); /* Use secondary color as accent */
+    }
+
+    .form-card-header {
+        text-align: center;
+        margin-bottom: 30px;
+    }
+    .form-card-header .header-icon {
+        font-size: 2.5em;
+        color: var(--secondary-color);
+        margin-bottom: 10px;
+        display: block;
+    }
+
+    .compose-form .form-group {
+        margin-bottom: 25px;
+    }
+    .compose-form label {
+        font-weight: 500; /* Slightly less bold than base.html's default label */
+        font-size: 0.95em;
+        color: var(--text-color-dark);
+        margin-bottom: 8px;
+        display: block;
+    }
+    .form-control { /* From base.html, ensure it's applied */
+        /* Styles inherited */
+    }
+    textarea.form-control {
+        min-height: 150px;
+        resize: vertical; /* Allow vertical resize only */
+    }
+
+    /* Custom File Input Styling */
+    .attachment-group {
+        position: relative; /* For positioning the custom elements */
+    }
+    .attachment-label { /* Style the label to look like a button */
+        display: inline-block;
+        padding: 8px 15px;
+        background-color: #e9ecef;
+        color: var(--text-color-dark);
+        border: 1px solid var(--border-color);
+        border-radius: var(--border-radius-sm);
+        cursor: pointer;
+        transition: background-color 0.2s;
+        font-weight: 500;
+        font-size: 0.9em;
+    }
+    .attachment-label:hover {
+        background-color: #dfe4ea;
+    }
+    .attachment-label i {
+        margin-right: 8px;
+        color: var(--primary-color);
+    }
+    .file-input-custom { /* Hide the default file input */
+        width: 0.1px;
+        height: 0.1px;
+        opacity: 0;
+        overflow: hidden;
+        position: absolute;
+        z-index: -1;
+    }
+    .file-input-custom + .file-name-display { /* Style the span that shows the filename */
+        margin-left: 10px;
+        font-style: italic;
+        color: var(--text-color-light);
+        font-size: 0.9em;
+    }
+    .form-text.text-muted { /* For the help text below file input */
+        display: block;
+        margin-top: 8px;
+        font-size: 0.85em;
+        color: var(--text-color-light);
+    }
+
+
+    .form-actions {
+        margin-top: 30px;
+        display: flex;
+        justify-content: flex-end; /* Align buttons to the right */
+        align-items: center;
+        gap: 15px; /* Space between buttons */
+    }
+    .btn-send i, .btn-cancel i {
+        margin-right: 8px;
+    }
+    .btn-cancel { /* Specific style for cancel if needed */
+        /* Using btn-outline-primary from base.html */
+    }
+
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const fileInput = document.getElementById('attachment');
+    const fileNameDisplay = document.querySelector('.file-name-display');
+
+    if (fileInput && fileNameDisplay) {
+        fileInput.addEventListener('change', function(e) {
+            const fileName = e.target.files[0] ? e.target.files[0].name : 'No file chosen';
+            fileNameDisplay.textContent = fileName;
+        });
+    }
+});
+</script>
 {% endblock %}

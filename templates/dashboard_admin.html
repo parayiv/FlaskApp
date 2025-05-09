@@ -1,79 +1,176 @@
+<!-- templates/dashboard_admin.html -->
 {% extends 'base.html' %}
 
 {% block title %}Admin Dashboard{% endblock %}
 
 {% block content %}
-<div class="admin-dashboard">
-    <h1 class="page-title">Admin Dashboard</h1>
-    <p>Welcome, {{ g.user.username }}! You have admin privileges.</p>
+<div class="admin-dashboard-container"> {# Changed class name for clarity #}
+    <header class="dashboard-header">
+        <h1 class="page-title">Administrator Dashboard</h1>
+        <p class="page-subtitle">Manage users, system messages, and pending requests.</p>
+    </header>
 
-    <section class="dashboard-section">
-        <h2>User Management</h2>
-        <a href="{{ url_for('admin_create_user') }}" class="btn btn-primary">Create New User</a>
-        <div class="user-list" style="margin-top: 20px;">
-            <h3>All Registered Users ({{ all_users|length }})</h3>
-            {% if all_users %}
-            <table class="table">
-                <thead>
-                    <tr>
-                        <th>ID</th>
-                        <th>Username</th>
-                        <th>Admin?</th>
-                        <th>Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for user_item in all_users %}
-                    <tr>
-                        <td>{{ user_item.id }}</td>
-                        <td>{{ user_item.username }}</td>
-                        <td>{{ "Yes" if user_item.is_admin else "No" }}</td>
-                        <td>
-                            <a href="{{ url_for('admin_update_user', user_id=user_item.id) }}" class="btn btn-sm btn-info">Edit</a>
-                            {% if g.user.id != user_item.id %} {# Can't delete self #}
-                            <form action="{{ url_for('admin_delete_user', user_id=user_item.id) }}" method="post" style="display: inline;" onsubmit="return confirm('Are you sure you want to delete {{ user_item.username }}? This cannot be undone.');">
-                                <input type="submit" value="Delete" class="btn btn-sm btn-danger">
-                            </form>
-                            {% endif %}
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-            {% else %}
-            <p>No users found.</p>
-            {% endif %}
-        </div>
-    </section>
+    <div class="admin-dashboard-grid"> {# Using a grid for layout #}
+        <section class="dashboard-panel user-management-panel"> {# Changed class name #}
+            <div class="panel-header">
+                <h2 class="panel-title"><i class="fas fa-users-cog"></i> User Management</h2>
+                <a href="{{ url_for('admin_create_user') }}" class="btn btn-primary btn-sm">
+                    <i class="fas fa-user-plus"></i> Create New User
+                </a>
+            </div>
+            <div class="user-list-container">
+                {% if all_users %}
+                <div class="table-responsive-wrapper">
+                    <table class="professional-table admin-user-table"> {# Using professional table style #}
+                        <thead>
+                            <tr>
+                                <th>Username</th>
+                                <th>Full Name</th>
+                                <th>Department</th>
+                                <th>Gender</th>
+                                <th>Admin?</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for user_item in all_users %}
+                            <tr>
+                                <td><strong>{{ user_item.username }}</strong></td>
+                                <td>{{ user_item.full_name if user_item.full_name else '-' }}</td>
+                                <td>{{ user_item.department if user_item.department else '-' }}</td>
+                                <td>{{ user_item.gender if user_item.gender else '-' }}</td>
+                                <td>
+                                    <span class="status-badge {{ 'status-admin' if user_item.is_admin else 'status-user' }}">
+                                        {{ "Yes" if user_item.is_admin else "No" }}
+                                    </span>
+                                </td>
+                                <td class="actions-cell">
+                                    <a href="{{ url_for('admin_update_user', user_id=user_item.id) }}" class="btn btn-sm btn-outline-primary action-btn" title="Edit User">
+                                        <i class="fas fa-edit"></i> Edit
+                                    </a>
+                                    {% if g.user.id != user_item.id %}
+                                    <form action="{{ url_for('admin_delete_user', user_id=user_item.id) }}" method="post" class="delete-form"
+                                          onsubmit="return confirm('Are you sure you want to delete {{ user_item.username }}? This action cannot be undone.');">
+                                        <button type="submit" class="btn btn-sm btn-danger action-btn" title="Delete User">
+                                            <i class="fas fa-trash-alt"></i> Delete
+                                        </button>
+                                    </form>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p class="panel-empty-state"><i class="fas fa-users fa-2x"></i> No users found in the system.</p>
+                {% endif %}
+            </div>
+        </section>
 
-    <section class="dashboard-section">
-        <h2>Notifications & Messages</h2>
-        <p><a href="{{ url_for('admin_view_messages') }}" class="btn btn-secondary">
-            View Messages {% if unread_messages_count > 0 %}<span class="badge badge-danger">{{ unread_messages_count }} new</span>{% endif %}
-        </a></p>
-    </section>
+        <section class="dashboard-panel system-messages-panel">
+            <h2 class="panel-title"><i class="fas fa-envelope"></i> System Messages</h2>
+            <a href="{{ url_for('admin_view_messages') }}" class="btn btn-outline-primary btn-block">
+                View All Messages
+                {% if unread_messages_count > 0 %}
+                    <span class="badge-notification">{{ unread_messages_count }} New</span>
+                {% endif %}
+            </a>
+        </section>
 
-    <section class="dashboard-section">
-        <h2>User Requests</h2>
-        <p><a href="{{ url_for('admin_view_requests') }}" class="btn btn-secondary">View User Requests</a></p>
-    </section>
-
+        <section class="dashboard-panel user-requests-panel">
+            <h2 class="panel-title"><i class="fas fa-clipboard-check"></i> User Requests</h2>
+            <a href="{{ url_for('admin_view_requests') }}" class="btn btn-outline-primary btn-block">
+                View All Requests
+                {% if pending_requests_count > 0 %}
+                     <span class="badge-notification">{{ pending_requests_count }} Pending</span>
+                {% endif %}
+            </a>
+        </section>
+    </div>
 </div>
 
 <style>
-    .admin-dashboard .dashboard-section { margin-bottom: 30px; padding: 20px; background-color: #f9f9f9; border-radius: 8px; }
-    .admin-dashboard h2 { margin-top: 0; color: #333; border-bottom: 1px solid #eee; padding-bottom: 10px; }
-    .btn { display: inline-block; padding: 8px 15px; margin-bottom: 5px; margin-right: 5px; font-size: 0.9em; font-weight: 400; line-height: 1.5; text-align: center; white-space: nowrap; vertical-align: middle; cursor: pointer; border: 1px solid transparent; border-radius: .25rem; text-decoration: none; }
-    .btn-primary { color: #fff; background-color: #007bff; border-color: #007bff; }
-    .btn-primary:hover { background-color: #0056b3; }
-    .btn-secondary { color: #fff; background-color: #6c757d; border-color: #6c757d; }
-    .btn-info { color: #fff; background-color: #17a2b8; border-color: #17a2b8; }
-    .btn-danger { color: #fff; background-color: #dc3545; border-color: #dc3545; }
-    .btn-sm { padding: .25rem .5rem; font-size: .875em; line-height: 1.5; border-radius: .2rem; }
-    .table { width: 100%; margin-bottom: 1rem; color: #212529; border-collapse: collapse; }
-    .table th, .table td { padding: .75rem; vertical-align: top; border-top: 1px solid #dee2e6; }
-    .table thead th { vertical-align: bottom; border-bottom: 2px solid #dee2e6; background-color: #f1f1f1;}
-    .badge { display: inline-block; padding: .25em .4em; font-size: 75%; font-weight: 700; line-height: 1; text-align: center; white-space: nowrap; vertical-align: baseline; border-radius: .25rem; }
-    .badge-danger { color: #fff; background-color: #dc3545; }
+    /* Inherit .dashboard-panel, .panel-title, .professional-table etc. from base or user dashboard if applicable */
+    /* Or define them here for admin specific styling */
+    .admin-dashboard-container { /* Styles for overall admin dashboard if needed */ }
+
+    .admin-dashboard-grid {
+        display: grid;
+        grid-template-columns: 1fr; /* Default: single column */
+        gap: 30px;
+    }
+    @media (min-width: 992px) { /* Two columns for larger widgets, third for smaller ones */
+        .admin-dashboard-grid {
+             grid-template-columns: 2fr 1fr; /* Example: User management wider, others narrower */
+        }
+        .user-management-panel {
+            grid-column: 1 / 2; /* Takes first column */
+            grid-row: 1 / span 2; /* Spans two rows to align with smaller widgets */
+        }
+        .system-messages-panel { grid-column: 2 / 3; grid-row: 1 / 2; }
+        .user-requests-panel { grid-column: 2 / 3; grid-row: 2 / 3; }
+    }
+    @media (min-width: 1200px) { /* Three columns on very large screens */
+         .admin-dashboard-grid {
+             grid-template-columns: repeat(3, 1fr);
+         }
+         .user-management-panel { grid-column: 1 / span 2; grid-row: 1 / span 1; } /* User mgmt takes 2/3 width */
+         .system-messages-panel { grid-column: 3 / 4; grid-row: 1 / span 1; }
+         .user-requests-panel { grid-column: 3 / 4; grid-row: 2 / span 1; } /* Could stack under messages or go to next row */
+    }
+
+
+    .dashboard-panel { /* Assuming this style from user dashboard or base.html */
+        background-color: var(--card-bg); padding: 25px 30px;
+        border-radius: var(--border-radius-md); box-shadow: var(--shadow-md);
+        border: 1px solid var(--border-color);
+        display: flex; flex-direction: column; /* Helps with internal alignment */
+    }
+    .panel-header {
+        display: flex; justify-content: space-between; align-items: center;
+        margin-bottom: 20px;
+    }
+    .panel-title {
+        font-family: var(--font-family-headings); font-weight: 600; font-size: 1.35em;
+        color: var(--text-color-headings); margin-top: 0; margin-bottom: 0; /* Adjusted */
+    }
+    .panel-title i { margin-right: 10px; color: var(--primary-color); }
+
+    .user-list-container { /* Max height and scroll for long user lists */
+        max-height: 500px; /* Adjust as needed */
+        overflow-y: auto;
+        flex-grow: 1; /* Allows it to take available space in flex column */
+    }
+    .admin-user-table th, .admin-user-table td {
+        padding: 10px 12px; /* Slightly less padding for admin table */
+        font-size: 0.9em;
+    }
+    .admin-user-table strong { font-weight: 500; }
+    .status-badge { /* General status badge styling */
+        padding: 4px 8px; border-radius: var(--border-radius-sm);
+        font-size: 0.8em; font-weight: 600; color: white;
+    }
+    .status-admin { background-color: var(--secondary-color); } /* Gold for admin */
+    .status-user { background-color: var(--text-color-light); } /* Gray for regular user */
+
+    .actions-cell { white-space: nowrap; text-align: right; }
+    .actions-cell .action-btn { margin-left: 5px; padding: 5px 8px; font-size: 0.85em; }
+    .actions-cell .action-btn i { margin-right: 4px; }
+    .delete-form { display: inline-block; }
+
+    .btn-block { width: 100%; margin-top: 10px; text-align: center; }
+    .badge-notification {
+        background-color: var(--accent-color); /* Red */
+        color: white;
+        border-radius: 10px;
+        padding: 2px 7px;
+        font-size: 0.75em;
+        margin-left: 8px;
+        font-weight: bold;
+    }
+    .panel-empty-state { text-align: center; padding: 20px; color: var(--text-color-light); }
+    .panel-empty-state i { font-size: 1.8em; margin-bottom: 10px; color: var(--border-color); }
+
 </style>
 {% endblock %}

@@ -5,7 +5,10 @@ CREATE TABLE users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     username TEXT UNIQUE NOT NULL,
     password_hash TEXT NOT NULL,
-    is_admin BOOLEAN NOT NULL DEFAULT 0 -- 0 for False, 1 for True
+    is_admin BOOLEAN NOT NULL DEFAULT 0,
+    full_name TEXT,             -- NEW
+    gender TEXT,                -- NEW (e.g., 'male', 'female', 'other', 'prefer_not_to_say')
+    department TEXT             -- NEW
 );
 
 -- We'll also need a messages table later

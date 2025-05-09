@@ -21,6 +21,11 @@ ALLOWED_EXTENSIONS = {'txt', 'pdf', 'png', 'jpg', 'jpeg', 'gif', 'doc', 'docx', 
 app.config['UPLOAD_FOLDER'] = os.path.join(app.instance_path, 'uploads')
 
 
+# Define department options globally or pass from route
+DEPARTMENT_CHOICES = ["Human Resources", "IT", "Marketing", "Sales", "Operations", "Finance", "Workers"]
+GENDER_CHOICES = ["Male", "Female", "Other", "Prefer not to say"]
+
+
 # --- Database Helper Functions ---
 def get_db():
     if 'db' not in g:
@@ -143,7 +148,11 @@ def load_logged_in_user():
     g.user = None
     if user_id is not None:
         db = get_db()
-        g.user = db.execute('SELECT id, username, is_admin FROM users WHERE id = ?', (user_id,)).fetchone()
+        # Added full_name, gender, department to g.user for potential use
+        g.user = db.execute(
+            'SELECT id, username, is_admin, full_name, gender, department FROM users WHERE id = ?', (user_id,)
+        ).fetchone()
+
 
 # --- Context Processor for Footer Year ---
 @app.context_processor
@@ -232,7 +241,9 @@ def login():
 def dashboard():
     if g.user['is_admin']:
         db = get_db()
-        all_users = db.execute('SELECT id, username, is_admin FROM users ORDER BY username').fetchall()
+        all_users = db.execute(
+            'SELECT id, username, is_admin, full_name, gender, department FROM users ORDER BY username'
+        ).fetchall()
         unread_messages_count = db.execute(
             'SELECT COUNT(id) FROM messages WHERE is_read = 0'
         ).fetchone()[0]
@@ -255,32 +266,29 @@ def dashboard():
         ).fetchall()
 
         user_requests_processed = []
-        if user_requests_raw: # Check if there are any requests
+        if user_requests_raw:
             for req_row in user_requests_raw:
                 req_dict = dict(req_row)
-                # Timestamp conversion (ensure this logic is robust from previous step)
                 try:
                     if isinstance(req_dict['submitted_at'], str):
-                        # Try with microseconds first
                         dt_obj = datetime.strptime(req_dict['submitted_at'], '%Y-%m-%d %H:%M:%S.%f')
-                    elif isinstance(req_dict['submitted_at'], datetime): # Already a datetime object
+                    elif isinstance(req_dict['submitted_at'], datetime):
                         dt_obj = req_dict['submitted_at']
                     else:
                         dt_obj = None
                 except ValueError:
-                    # If parsing with microseconds fails, try without
                     try:
                         if isinstance(req_dict['submitted_at'], str):
                             dt_obj = datetime.strptime(req_dict['submitted_at'], '%Y-%m-%d %H:%M:%S')
-                        else: # Fallback if not string or already datetime
+                        else:
                             dt_obj = req_dict['submitted_at']
                     except ValueError as e:
                         app.logger.error(f"Error parsing user_request submitted_at string '{req_dict['submitted_at']}': {e}")
-                        dt_obj = None # Or some default
+                        dt_obj = None
                 req_dict['submitted_at'] = dt_obj
                 user_requests_processed.append(req_dict)
 
-        return render_template('dashboard_user.html', user_requests=user_requests_processed)
+        return render_template('dashboard_user.html', user_requests=user_requests_processed) # <<< ENSURE THIS RETURN IS HERE
 
 @app.route('/logout')
 def logout():
@@ -289,61 +297,127 @@ def logout():
     return redirect(url_for('index'))
 
 # --- Admin User Management Routes ---
-@app.route('/admin/users/create', methods=['GET', 'POST'])
+@app.route('/admin/users/create', methods=['GET', 'POST']) # This line defines the route
 @login_required
 @admin_required
-def admin_create_user():
+def admin_create_user(): # This function name is the endpoint 'admin_create_user'
     if request.method == 'POST':
-        username = request.form['username']
-        password = request.form['password']
+        username = request.form.get('username', '').strip()
+        password = request.form.get('password') # No strip, password can have spaces
         is_admin = 'is_admin' in request.form
+        full_name = request.form.get('full_name', '').strip()
+        gender = request.form.get('gender')
+        department = request.form.get('department')
+        
         db = get_db()
         error = None
 
-        if not username: error = 'Username is required.'
-        elif not password: error = 'Password is required.'
+        if not username:
+            error = 'Username is required.'
+        elif not password: # Password is required for new user
+            error = 'Password is required.'
+        elif not full_name:
+            error = 'Full Name is required.'
+        elif gender and gender not in GENDER_CHOICES: # Validate against choices
+            error = 'Invalid gender selected.'
+        elif department and department not in DEPARTMENT_CHOICES: # Validate against choices
+            error = 'Invalid department selected.'
         elif db.execute('SELECT id FROM users WHERE username = ?', (username,)).fetchone():
-            error = f"User {username} already exists."
+            error = f"User '{username}' already exists."
 
         if error is None:
-            db.execute('INSERT INTO users (username, password_hash, is_admin) VALUES (?, ?, ?)',
-                       (username, generate_password_hash(password), 1 if is_admin else 0))
-            db.commit()
-            flash(f'User {username} created successfully.', 'success')
-            return redirect(url_for('dashboard'))
-        flash(error, 'error')
-    return render_template('admin_user_form.html', action="Create", user=None) # Pass user=None for consistency
+            try:
+                db.execute(
+                    '''INSERT INTO users (username, password_hash, is_admin, full_name, gender, department)
+                       VALUES (?, ?, ?, ?, ?, ?)''',
+                    (username, generate_password_hash(password), 1 if is_admin else 0,
+                     full_name, gender, department)
+                )
+                db.commit()
+                flash(f'User {username} ({full_name}) created successfully.', 'success')
+                return redirect(url_for('dashboard')) # Or wherever your admin user list is
+            except Exception as e:
+                db.rollback()
+                app.logger.error(f"Error creating user: {e}")
+                error = "An unexpected error occurred while creating the user."
+        
+        # If error occurred, flash it and re-render the form (values will be repopulated by request.form in template)
+        if error:
+            flash(error, 'error')
+    
+    # For GET request or if POST had an error, pass choices and form data to template
+    # request.form will be empty on GET, but will have submitted values on POST error
+    return render_template('admin_user_form.html',
+                           action="Create",
+                           user=None, # No existing user data for create form
+                           department_choices=DEPARTMENT_CHOICES,
+                           gender_choices=GENDER_CHOICES,
+                           # Pass request.form to help repopulate fields on error
+                           form_data=request.form if request.method == 'POST' else {})
 
 @app.route('/admin/users/update/<int:user_id>', methods=['GET', 'POST'])
 @login_required
 @admin_required
 def admin_update_user(user_id):
     db = get_db()
-    user_to_update = db.execute('SELECT id, username, is_admin FROM users WHERE id = ?', (user_id,)).fetchone()
+    # Fetch all relevant fields for the user being updated
+    user_to_update = db.execute(
+        'SELECT id, username, is_admin, full_name, gender, department FROM users WHERE id = ?', (user_id,)
+    ).fetchone()
+
     if not user_to_update:
         flash('User not found.', 'error')
-        return redirect(url_for('dashboard'))
+        return redirect(url_for('dashboard')) # Or admin user list page
 
     if request.method == 'POST':
         new_password = request.form.get('password')
         is_admin = 'is_admin' in request.form
-        
-        query_parts = ["is_admin = ?"]
-        params = [1 if is_admin else 0]
+        full_name = request.form.get('full_name', '').strip()
+        gender = request.form.get('gender')
+        department = request.form.get('department')
+        error = None
 
-        if new_password:
-            query_parts.append("password_hash = ?")
-            params.append(generate_password_hash(new_password))
-        
-        params.append(user_id)
-        query = f"UPDATE users SET {', '.join(query_parts)} WHERE id = ?"
-        
-        db.execute(query, tuple(params))
-        db.commit()
-        flash(f'User {user_to_update["username"]} updated.', 'success')
-        return redirect(url_for('dashboard'))
-        
-    return render_template('admin_user_form.html', action="Update", user=user_to_update)
+        if not full_name: error = 'Full Name is required.'
+        elif gender and gender not in GENDER_CHOICES: error = 'Invalid gender selected.'
+        elif department and department not in DEPARTMENT_CHOICES: error = 'Invalid department selected.'
+        # Username change is typically not allowed or handled with more care due to uniqueness
+        # current_username = request.form.get('username')
+        # if user_to_update['username'] != current_username and \
+        #    db.execute('SELECT id FROM users WHERE username = ? AND id != ?', (current_username, user_id)).fetchone():
+        #     error = f"Username {current_username} already taken."
+
+
+        if error is None:
+            query_parts = ["is_admin = ?", "full_name = ?", "gender = ?", "department = ?"]
+            params = [1 if is_admin else 0, full_name, gender, department]
+
+            if new_password:
+                query_parts.append("password_hash = ?")
+                params.append(generate_password_hash(new_password))
+            
+            params.append(user_id) # For the WHERE clause
+            query = f"UPDATE users SET {', '.join(query_parts)} WHERE id = ?"
+            
+            try:
+                db.execute(query, tuple(params))
+                db.commit()
+                flash(f'User {user_to_update["username"]} updated successfully.', 'success')
+                return redirect(url_for('dashboard')) # Or admin user list page
+            except Exception as e:
+                db.rollback()
+                app.logger.error(f"Error updating user: {e}")
+                error = "An unexpected error occurred while updating the user."
+
+        if error:
+            flash(error, 'error')
+    
+    # For GET request or if POST had an error
+    return render_template('admin_user_form.html',
+                           action="Update",
+                           user=user_to_update,
+                           department_choices=DEPARTMENT_CHOICES,
+                           gender_choices=GENDER_CHOICES)
+
 
 @app.route('/admin/users/delete/<int:user_id>', methods=['POST'])
 @login_required

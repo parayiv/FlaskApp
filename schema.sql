@@ -47,3 +47,16 @@ CREATE TABLE attachments (
     uploaded_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (message_id) REFERENCES messages (id) ON DELETE CASCADE -- If message is deleted, delete attachments
 );
+
+DROP TABLE IF EXISTS requests;
+CREATE TABLE requests (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    request_type TEXT NOT NULL, -- 'payslip', 'vacation'
+    details TEXT, -- e.g., month for payslip, dates for vacation
+    status TEXT NOT NULL DEFAULT 'pending', -- pending, approved, rejected
+    submitted_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    admin_notes TEXT,
+    payslip_filename TEXT,      -- NEW: To store the filename of the uploaded payslip
+    FOREIGN KEY (user_id) REFERENCES users (id)
+);

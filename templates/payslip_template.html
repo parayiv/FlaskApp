@@ -1,0 +1,95 @@
+<!-- templates/payslip_template.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Payslip</title>
+    <style>
+        body { font-family: 'Helvetica', 'Arial', sans-serif; margin: 0; padding: 0; color: #333; }
+        .payslip-container {
+            width: 90%;
+            margin: 20px auto;
+            padding: 20px;
+            border: 1px solid #ccc;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        .header { text-align: center; margin-bottom: 30px; }
+        .header h1 { margin: 0; color: #2c3e50; font-size: 24px; }
+        .header p { margin: 5px 0; font-size: 14px; }
+        .employee-details, .earnings, .deductions, .summary {
+            margin-bottom: 20px;
+            border-collapse: collapse;
+            width: 100%;
+        }
+        .employee-details th, .employee-details td,
+        .earnings th, .earnings td,
+        .deductions th, .deductions td,
+        .summary th, .summary td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+            font-size: 12px;
+        }
+        .employee-details th { width: 30%; background-color: #f9f9f9; }
+        .section-title {
+            font-size: 16px;
+            font-weight: bold;
+            margin-top: 20px;
+            margin-bottom: 10px;
+            color: #34495e;
+        }
+        .total-row td { font-weight: bold; background-color: #f0f0f0; }
+        .company-info { text-align: center; font-size: 10px; color: #777; margin-top: 30px; }
+    </style>
+</head>
+<body>
+    <div class="payslip-container">
+        <div class="header">
+            <h1>HR Employment & Vocational Training</h1>
+            <p>123 Company Address, City, State, Zip</p>
+            <p>Payslip for {{ payslip_period }}</p>
+        </div>
+
+        <div class="section-title">Employee Details</div>
+        <table class="employee-details">
+            <tr><th>Employee Name:</th><td>{{ user.full_name or user.username }}</td></tr>
+            <tr><th>Employee ID:</th><td>EMP-{{ user.id }}</td></tr>
+            <tr><th>Department:</th><td>{{ user.department or 'N/A' }}</td></tr>
+            <tr><th>Payslip Period:</th><td>{{ payslip_period }}</td></tr>
+        </table>
+
+        <div class="section-title">Earnings</div>
+        <table class="earnings">
+            <thead><tr><th>Description</th><th>Amount (USD)</th></tr></thead>
+            <tbody>
+                <tr><td>Basic Salary</td><td>{{ earnings.basic_salary|round(2) }}</td></tr>
+                <tr><td>Allowances</td><td>{{ earnings.allowances|round(2) }}</td></tr>
+                <tr class="total-row"><td>Gross Earnings</td><td>{{ earnings.gross_earnings|round(2) }}</td></tr>
+            </tbody>
+        </table>
+
+        <div class="section-title">Deductions</div>
+        <table class="deductions">
+            <thead><tr><th>Description</th><th>Amount (USD)</th></tr></thead>
+            <tbody>
+                <tr><td>Income Tax</td><td>{{ deductions.income_tax|round(2) }}</td></tr>
+                <tr><td>Other Deductions</td><td>{{ deductions.other_deductions|round(2) }}</td></tr>
+                <tr class="total-row"><td>Total Deductions</td><td>{{ deductions.total_deductions|round(2) }}</td></tr>
+            </tbody>
+        </table>
+
+        <div class="section-title">Summary</div>
+        <table class="summary">
+            <tr><th>Gross Earnings:</th><td>{{ earnings.gross_earnings|round(2) }}</td></tr>
+            <tr><th>Total Deductions:</th><td>{{ deductions.total_deductions|round(2) }}</td></tr>
+            <tr class="total-row"><th>Net Pay:</th><td>{{ net_pay|round(2) }}</td></tr>
+        </table>
+
+        <div class="company-info">
+            This is a computer-generated payslip and does not require a signature.
+            <br>
+            Generated on: {{ generation_date }}
+        </div>
+    </div>
+</body>
+</html>

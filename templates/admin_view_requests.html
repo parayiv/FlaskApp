@@ -4,7 +4,7 @@
 {% block title %}Admin - User Requests{% endblock %}
 
 {% block content %}
-<div class="admin-requests-container"> {# This container now ensures the panel below can be centered if needed #}
+<div class="admin-requests-container">
     <header class="page-header-section">
         <h1 class="page-title">User Requests Management</h1>
         <a href="{{ url_for('dashboard') }}" class="btn btn-sm btn-outline-secondary back-link">
@@ -13,59 +13,75 @@
     </header>
 
     {% if requests %}
-        <div class="professional-panel"> {# This panel will be centered by its parent if parent has layout rules for it #}
-            <div class="table-responsive-wrapper">
-                <table class="professional-table admin-requests-table">
-                    <thead>
-                        <tr>
-                            <th>ID</th>
-                            <th>User</th>
-                            <th>Type</th>
-                            <th class="details-col-header">Details</th> {# Unique class for header if needed #}
-                            <th>Submitted</th>
-                            <th class="status-col-header">Status & Notes</th> {# Unique class for header if needed #}
-                        </tr>
-                    </thead>
-                    <tbody>
-                    {% for req in requests %}
-                        <tr class="request-row-{{ req.status|lower }}">
-                            <td>{{ req.id }}</td>
-                            <td>{{ req.user_username }}</td>
-                            <td>
-                                <i class="fas {% if req.request_type == 'payslip' %}fa-file-invoice-dollar{% elif req.request_type == 'vacation' %}fa-plane-departure{% else %}fa-clipboard-list{% endif %} fa-fw type-icon"></i>
-                                {{ req.request_type|capitalize }}
-                            </td>
-                            <td class="details-cell">{{ req.details|nl2br }}</td> {# Changed class for clarity from .details-col #}
-                            <td class="date-cell">
-                                {% if req.submitted_at %}
-                                    {{ req.submitted_at.strftime('%Y-%m-%d') }}
-                                    <span class="time-muted">{{ req.submitted_at.strftime('%H:%M') }}</span>
-                                {% else %}
-                                    N/A
+        <div class="table-responsive-wrapper professional-panel">
+            <table class="professional-table admin-requests-table">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>User</th>
+                        <th>Type</th>
+                        <th class="details-col-header">Details</th>
+                        <th>Submitted</th>
+                        <th class="status-col-header">Status & Notes</th>
+                        <th class="actions-col-header">Actions</th> {# New Column for Delete #}
+                    </tr>
+                </thead>
+                <tbody>
+                {% for req in requests %}
+                    <tr class="request-row-{{ req.status|lower }}" id="request-{{ req.id }}"> {# Added ID for anchor #}
+                        <td>{{ req.id }}</td>
+                        <td>{{ req.user_username }}</td>
+                        <td>
+                            <i class="fas {% if req.request_type == 'payslip' %}fa-file-invoice-dollar{% elif req.request_type == 'vacation' %}fa-plane-departure{% else %}fa-clipboard-list{% endif %} fa-fw type-icon"></i>
+                            {{ req.request_type|capitalize }}
+                        </td>
+                        <td class="details-cell">{{ req.details|nl2br }}</td>
+                        <td class="date-cell">
+                            {% if req.submitted_at %}
+                                {{ req.submitted_at.strftime('%Y-%m-%d') }}
+                                <span class="time-muted">{{ req.submitted_at.strftime('%H:%M') }}</span>
+                            {% else %} N/A {% endif %}
+                        </td>
+                        <td class="status-actions-cell">
+                            <form method="post" action="{{ url_for('admin_update_request_status', request_id=req.id) }}" class="update-status-form">
+                                <div class="form-group-compact">
+                                    <label for="status-{{req.id}}" class="sr-only">Status</label>
+                                    <select name="status" id="status-{{req.id}}" class="form-control form-control-sm status-select">
+                                        <option value="pending" {{ 'selected' if req.status == 'pending' }}>Pending</option>
+                                        <option value="approved" {{ 'selected' if req.status == 'approved' }}>Approved</option>
+                                        <option value="rejected" {{ 'selected' if req.status == 'rejected' }}>Rejected</option>
+                                    </select>
+                                </div>
+                                <div class="form-group-compact">
+                                    <label for="admin_notes-{{req.id}}" class="sr-only">Admin Notes</label>
+                                    <textarea name="admin_notes" id="admin_notes-{{req.id}}" placeholder="Admin Notes..." class="form-control form-control-sm notes-textarea" rows="2">{{ req.admin_notes or '' }}</textarea>
+                                </div>
+
+                                {% if req.request_type == 'payslip' and req.status == 'approved' and req.payslip_filename %}
+                                <div class="current-payslip-link" style="margin-top: 8px;">
+                                    <a href="{{ url_for('view_payslip', filename=req.payslip_filename) }}" target="_blank" class="btn btn-xs btn-outline-info" title="View generated payslip">
+                                        <i class="fas fa-file-pdf"></i> View Payslip
+                                    </a>
+                                </div>
                                 {% endif %}
-                            </td>
-                            <td class="status-actions-cell">
-                                <form method="post" action="{{ url_for('admin_update_request_status', request_id=req.id) }}" class="update-status-form">
-                                    <div class="form-group-compact">
-                                        <select name="status" class="form-control form-control-sm status-select">
-                                            <option value="pending" {{ 'selected' if req.status == 'pending' }}>Pending</option>
-                                            <option value="approved" {{ 'selected' if req.status == 'approved' }}>Approved</option>
-                                            <option value="rejected" {{ 'selected' if req.status == 'rejected' }}>Rejected</option>
-                                        </select>
-                                    </div>
-                                    <div class="form-group-compact">
-                                        <textarea name="admin_notes" placeholder="Admin Notes..." class="form-control form-control-sm notes-textarea" rows="2">{{ req.admin_notes or '' }}</textarea>
-                                    </div>
-                                    <button type="submit" class="btn btn-sm btn-primary btn-block update-button">
-                                        <i class="fas fa-sync-alt"></i> Update
-                                    </button>
-                                </form>
-                            </td>
-                        </tr>
-                    {% endfor %}
-                    </tbody>
-                </table>
-            </div>
+
+                                <button type="submit" class="btn btn-sm btn-primary btn-block update-button" style="margin-top: 8px;">
+                                    <i class="fas fa-sync-alt"></i> Update Status
+                                </button>
+                            </form>
+                        </td>
+                        <td class="actions-cell-table"> {# New Cell for Delete Action #}
+                            <form method="post" action="{{ url_for('admin_delete_request', request_id=req.id) }}" class="delete-request-form"
+                                  onsubmit="return confirm('Are you sure you want to permanently delete this request (ID: {{ req.id }})? This action cannot be undone.');">
+                                <button type="submit" class="btn btn-xs btn-danger" title="Delete Request">
+                                    <i class="fas fa-trash-alt"></i>
+                                </button>
+                            </form>
+                        </td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
         </div>
     {% else %}
         <div class="panel-empty-state" style="background-color: var(--card-bg); padding: 30px; border-radius: var(--border-radius-md); box-shadow: var(--shadow-sm); margin: 0 auto; max-width: 600px;">
@@ -76,60 +92,39 @@
 </div>
 
 <style>
-    :root {
-        --row-bg-pending: #fceaea;
-        --row-bg-approved: #eaf7ec;
-        --row-bg-rejected: #eaf7ec;
+    /* --- Define status background colors using CSS variables (or use hex codes directly) --- */
+    :root { /* These might already be in your base.html or another template's style */
+        --row-bg-pending: #fceaea;   /* Very light red/pink for pending */
+        --row-bg-approved: #eaf7ec;  /* Very light green for approved */
+        --row-bg-rejected: #f0f0f0;  /* Using a light grey for rejected for distinction */
+        /* --row-bg-rejected: #eaf7ec; /* Or keep it green if preferred */
     }
 
-    .admin-requests-container {
-        /* This container will be centered by the main .container in base.html
-           if base.html's .container has max-width and margin:auto.
-           It ensures its children (like professional-panel) are within that centered block. */
-    }
-
-    .page-header-section {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 25px;
-    }
+    .admin-requests-container { }
+    .page-header-section { display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; }
     .page-header-section .page-title { margin-bottom: 0; }
-    /* .back-link and .btn-outline-secondary styles from base.html or previous version */
+    .back-link {} /* Assuming .btn-sm, .btn-outline-secondary styles are in base.html */
+    .btn-outline-secondary { color: var(--secondary-color, #6c757d); border-color: var(--secondary-color, #6c757d); }
+    .btn-outline-secondary:hover { background-color: var(--secondary-color, #6c757d); color: white; }
+
 
     .professional-panel {
         background-color: var(--card-bg);
-        padding: 20px 25px; /* Padding inside the panel, around the table-responsive-wrapper */
+        padding: 20px 25px;
         border-radius: var(--border-radius-md);
         box-shadow: var(--shadow-md);
         border: 1px solid var(--border-color);
-        /* It will take the width of .admin-requests-container.
-           If you want the panel itself to have a max-width and be centered
-           even if .admin-requests-container is wider, add:
-           max-width: 1400px; /* or your preferred max table width */
-        /* margin-left: auto; */
-        /* margin-right: auto; */
-        /* However, it's often better for base.html's .container to control overall page max-width. */
     }
-
-    .table-responsive-wrapper {
-        overflow-x: auto; /* This is crucial for responsiveness */
-    }
-
-    .professional-table.admin-requests-table {
-        width: 100%; /* Ensures table tries to fill .table-responsive-wrapper */
-        border-collapse: collapse;
-        /* table-layout: auto; is default, which means cell widths are based on content */
-    }
+    .table-responsive-wrapper { overflow-x: auto; }
+    .professional-table.admin-requests-table { width: 100%; border-collapse: collapse; }
 
     .admin-requests-table th,
     .admin-requests-table td {
-        padding: 9px 12px; /* Slightly adjusted padding for balance */
+        padding: 9px 12px;
         font-size: 0.9em;
         border: 1px solid var(--border-color-light, #e9ecef);
         vertical-align: middle;
     }
-
     .admin-requests-table thead th {
         background-color: #f8f9fa;
         font-weight: 600;
@@ -137,50 +132,53 @@
         text-transform: uppercase;
         font-size: 0.8em;
         letter-spacing: 0.5px;
-        border-bottom-width: 2px; /* Keep stronger bottom border for header */
+        border-bottom-width: 2px;
         border-top: none;
-        /* Removed individual L/R border none, rely on panel for outer look */
+    }
+    .admin-requests-table .type-icon { color: var(--primary-color); opacity: 0.8; margin-right: 5px; }
+    .details-cell { max-width: 280px; min-width: 150px; white-space: pre-wrap; word-break: break-word; font-size: 0.88em; line-height: 1.5; }
+    .date-cell .time-muted { display: block; font-size: 0.85em; color: var(--text-color-light); }
+    .status-actions-cell { min-width: 230px; }
+    .actions-cell-table { /* For the new delete action column */
+        text-align: center;
+        width: 60px; /* Fixed width for a small delete button */
     }
 
-    .admin-requests-table .type-icon {
-        color: var(--primary-color); opacity: 0.8; margin-right: 5px;
-    }
 
-    .details-cell { /* Class for the <td> */
-        max-width: 300px; /* Max width before wrapping for the details column's content */
-        min-width: 150px; /* Min width to prevent too much squishing */
-        white-space: pre-wrap;
-        word-break: break-word;
-        font-size: 0.88em;
-        line-height: 1.5;
-    }
-    .date-cell .time-muted { /* Class for the <td> */
-        display: block; font-size: 0.85em; color: var(--text-color-light);
-    }
-    .status-actions-cell { /* Class for the <td> */
-        min-width: 210px; /* Ensure enough space for the form */
-    }
-
-    /* Full Row Background Colors */
     .admin-requests-table tbody tr.request-row-pending { background-color: var(--row-bg-pending); }
     .admin-requests-table tbody tr.request-row-approved { background-color: var(--row-bg-approved); }
     .admin-requests-table tbody tr.request-row-rejected { background-color: var(--row-bg-rejected); }
+    .admin-requests-table tbody tr:hover td { background-color: rgba(0,0,0,0.04) !important; }
 
-    /* Subtle hover for all rows, slightly darkens the existing background */
-    .admin-requests-table tbody tr:hover td {
-        background-color: rgba(0,0,0,0.04) !important; /* Use !important if specific row bg overrides */
-    }
-
-    /* Form elements within the table cell */
-    .update-status-form .form-group-compact { margin-bottom: 6px; }
-    .form-control-sm {
-        padding: 0.3rem 0.6rem; font-size: 0.85em; line-height: 1.4;
-        border-radius: var(--border-radius-sm); background-color: var(--card-bg, #fff);
-    }
+    .update-status-form .form-group-compact { margin-bottom: 8px; }
+    .form-label-sm { font-size: 0.8em; display: block; margin-bottom: 3px; color: var(--text-color-light); }
+    .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border-width: 0; }
+    .form-control-sm { padding: 0.3rem 0.6rem; font-size: 0.85em; line-height: 1.4; border-radius: var(--border-radius-sm); background-color: var(--card-bg, #fff); border: 1px solid var(--border-color); width: 100%; box-sizing: border-box; }
     .notes-textarea { min-height: 40px; }
     .btn-sm { padding: 0.3rem 0.75rem; font-size: 0.85em; line-height: 1.4; }
+    .btn-xs { padding: .2rem .4rem; font-size: .75rem; line-height: 1.5; border-radius: .2rem; }
     .btn-block { display: block; width: 100%; }
     .update-button i { margin-right: 5px; }
 
+    .current-payslip-link { margin-top: 8px; font-size: 0.85em; }
+    .current-payslip-link a { color: var(--primary-color); text-decoration: none; }
+    .current-payslip-link a:hover { text-decoration: underline; }
+    .current-payslip-link i { margin-right: 4px; }
+    .btn-outline-info { color: var(--info-color, #17a2b8); border-color: var(--info-color, #17a2b8); }
+    .btn-outline-info:hover { background-color: var(--info-color, #17a2b8); color: white; }
+    .delete-request-form { display: inline-block; } /* For the new delete button */
+    .btn-danger { /* Ensure this is defined in base.html or here */
+        background-color: var(--danger-color, #dc3545);
+        border-color: var(--danger-color, #dc3545);
+        color: white;
+    }
+    .btn-danger:hover {
+        background-color: #c82333; /* Darker red */
+        border-color: #bd2130;
+    }
+
+    /* Panel Empty State - Ensure this is defined from base.html or other templates */
+    .panel-empty-state { text-align: center; padding: 30px 20px; color: var(--text-color-light); }
+    .panel-empty-state i { font-size: 2.5em; margin-bottom: 15px; color: var(--border-color); }
 </style>
 {% endblock %}

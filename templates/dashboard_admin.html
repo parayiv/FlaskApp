@@ -4,24 +4,28 @@
 {% block title %}Admin Dashboard{% endblock %}
 
 {% block content %}
-<div class="admin-dashboard-container"> {# Changed class name for clarity #}
+<div class="admin-dashboard-container">
     <header class="dashboard-header">
         <h1 class="page-title">Administrator Dashboard</h1>
         <p class="page-subtitle">Manage users, system messages, and pending requests.</p>
     </header>
 
-    <div class="admin-dashboard-grid"> {# Using a grid for layout #}
-        <section class="dashboard-panel user-management-panel"> {# Changed class name #}
+    <!-- Primary Action: Create New User -->
+    <div class="admin-primary-action-bar">
+        <a href="{{ url_for('admin_create_user') }}" class="btn btn-primary btn-lg main-action-btn creative-user-btn">
+            <i class="fas fa-wand-magic-sparkles"></i> Create New User
+        </a>
+    </div>
+
+    <div class="admin-dashboard-grid">
+        <section class="dashboard-panel user-management-panel">
             <div class="panel-header">
                 <h2 class="panel-title"><i class="fas fa-users-cog"></i> User Management</h2>
-                <a href="{{ url_for('admin_create_user') }}" class="btn btn-primary btn-sm">
-                    <i class="fas fa-user-plus"></i> Create New User
-                </a>
             </div>
             <div class="user-list-container">
                 {% if all_users %}
                 <div class="table-responsive-wrapper">
-                    <table class="professional-table admin-user-table"> {# Using professional table style #}
+                    <table class="professional-table admin-user-table">
                         <thead>
                             <tr>
                                 <th>Username</th>
@@ -91,9 +95,92 @@
 </div>
 
 <style>
-    /* Inherit .dashboard-panel, .panel-title, .professional-table etc. from base or user dashboard if applicable */
-    /* Or define them here for admin specific styling */
+    /*
+    DEFINE YOUR CSS VARIABLES HERE OR IN A GLOBAL STYLESHEET (e.g., base.css)
+    These are examples, adjust them to your theme.
+    :root {
+        --primary-color: #007bff;
+        --primary-color-dark: #0056b3;
+        --primary-color-light: #3395ff;
+        --primary-color-rgb: 0,123,255;
+        --secondary-color: #ffc107;
+        --accent-color: #dc3545;
+        --text-color: #343a40;
+        --text-color-headings: #212529;
+        --text-color-light: #6c757d;
+        --card-bg: #ffffff;
+        --border-color: #dee2e6;
+        --border-color-light: #e9ecef;
+        --border-radius-sm: .2rem;
+        --border-radius-md: .375rem;
+        --shadow-md: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+        --font-family-sans-serif: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+        --font-family-headings: "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    }
+    */
+
     .admin-dashboard-container { /* Styles for overall admin dashboard if needed */ }
+
+    /* Styles for the primary action bar */
+    .admin-primary-action-bar {
+        margin-bottom: 30px;
+        padding-bottom: 20px;
+        text-align: left; /* Or 'center' / 'right' */
+    }
+
+    .main-action-btn {
+        /* Base styles for main action buttons, might be partially overridden by specific creative buttons */
+        /* padding: 12px 24px; */ /* Handled by .creative-user-btn */
+        /* font-size: 1.1em; */   /* Handled by .creative-user-btn */
+        /* font-weight: 600; */ /* Handled by .creative-user-btn */
+        /* border-radius: var(--border-radius-md, 6px); */ /* Handled by .creative-user-btn */
+    }
+    .main-action-btn i {
+        margin-right: 8px;
+    }
+
+    /* Creative Button Styling */
+    .creative-user-btn {
+        background-image: linear-gradient(45deg, var(--primary-color-dark, #0056b3) 0%, var(--primary-color, #007bff) 50%, var(--primary-color-light, #3395ff) 100%);
+        border: none;
+        border-radius: 50px; /* Pill shape */
+        padding: 12px 25px; /* Adjusted padding for pill shape */
+        box-shadow: 0 5px 15px rgba(var(--primary-color-rgb, 0,123,255), 0.3),
+                    0 2px 5px rgba(0,0,0,0.1);
+        color: white !important; /* Ensure text is white, override Bootstrap if necessary */
+        font-weight: 600;
+        letter-spacing: 0.5px;
+        transition: all 0.3s ease-in-out;
+        overflow: hidden;
+        position: relative;
+        text-decoration: none; /* Ensure no underline from <a> tag if btn class doesn't remove it */
+    }
+
+    .creative-user-btn i {
+        margin-right: 12px;
+        font-size: 1.1em;
+        transition: transform 0.3s ease-in-out;
+    }
+
+    .creative-user-btn:hover, .creative-user-btn:focus {
+        background-image: linear-gradient(45deg, var(--primary-color, #007bff) 0%, var(--primary-color-light, #3395ff) 50%, var(--primary-color-dark, #0056b3) 100%);
+        transform: translateY(-2px) scale(1.02);
+        box-shadow: 0 8px 20px rgba(var(--primary-color-rgb, 0,123,255), 0.4),
+                    0 4px 8px rgba(0,0,0,0.15);
+        color: white !important; /* Maintain white text on hover */
+        text-decoration: none; /* Ensure no underline on hover */
+    }
+
+    .creative-user-btn:hover i {
+        transform: rotate(15deg) scale(1.1);
+    }
+
+    .creative-user-btn:active {
+        transform: translateY(0px) scale(1);
+        box-shadow: 0 3px 10px rgba(var(--primary-color-rgb, 0,123,255), 0.2),
+                    0 1px 3px rgba(0,0,0,0.1);
+    }
+
 
     .admin-dashboard-grid {
         display: grid;
@@ -102,11 +189,11 @@
     }
     @media (min-width: 992px) { /* Two columns for larger widgets, third for smaller ones */
         .admin-dashboard-grid {
-             grid-template-columns: 2fr 1fr; /* Example: User management wider, others narrower */
+             grid-template-columns: 2fr 1fr;
         }
         .user-management-panel {
-            grid-column: 1 / 2; /* Takes first column */
-            grid-row: 1 / span 2; /* Spans two rows to align with smaller widgets */
+            grid-column: 1 / 2;
+            grid-row: 1 / span 2;
         }
         .system-messages-panel { grid-column: 2 / 3; grid-row: 1 / 2; }
         .user-requests-panel { grid-column: 2 / 3; grid-row: 2 / 3; }
@@ -115,53 +202,85 @@
          .admin-dashboard-grid {
              grid-template-columns: repeat(3, 1fr);
          }
-         .user-management-panel { grid-column: 1 / span 2; grid-row: 1 / span 1; } /* User mgmt takes 2/3 width */
+         .user-management-panel { grid-column: 1 / span 2; grid-row: 1 / span 1; }
          .system-messages-panel { grid-column: 3 / 4; grid-row: 1 / span 1; }
-         .user-requests-panel { grid-column: 3 / 4; grid-row: 2 / span 1; } /* Could stack under messages or go to next row */
+         .user-requests-panel { grid-column: 3 / 4; grid-row: 2 / span 1; }
     }
 
 
-    .dashboard-panel { /* Assuming this style from user dashboard or base.html */
-        background-color: var(--card-bg); padding: 25px 30px;
-        border-radius: var(--border-radius-md); box-shadow: var(--shadow-md);
-        border: 1px solid var(--border-color);
-        display: flex; flex-direction: column; /* Helps with internal alignment */
+    .dashboard-panel {
+        background-color: var(--card-bg, #fff);
+        padding: 25px 30px;
+        border-radius: var(--border-radius-md, .375rem);
+        box-shadow: var(--shadow-md, 0 0.5rem 1rem rgba(0, 0, 0, 0.15));
+        border: 1px solid var(--border-color, #dee2e6);
+        display: flex; flex-direction: column;
     }
     .panel-header {
-        display: flex; justify-content: space-between; align-items: center;
+        display: flex;
+        justify-content: flex-start;
+        align-items: center;
         margin-bottom: 20px;
     }
     .panel-title {
-        font-family: var(--font-family-headings); font-weight: 600; font-size: 1.35em;
-        color: var(--text-color-headings); margin-top: 0; margin-bottom: 0; /* Adjusted */
+        font-family: var(--font-family-headings, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif);
+        font-weight: 600; font-size: 1.35em;
+        color: var(--text-color-headings, #212529); margin-top: 0; margin-bottom: 0;
     }
-    .panel-title i { margin-right: 10px; color: var(--primary-color); }
+    .panel-title i { margin-right: 10px; color: var(--primary-color, #007bff); }
 
-    .user-list-container { /* Max height and scroll for long user lists */
-        max-height: 500px; /* Adjust as needed */
+    .user-list-container {
+        max-height: 500px;
         overflow-y: auto;
-        flex-grow: 1; /* Allows it to take available space in flex column */
+        flex-grow: 1;
     }
+    .table-responsive-wrapper { /* Added for better responsive tables if needed */
+        overflow-x: auto;
+    }
+    .professional-table { /* General style for tables */
+        width: 100%;
+        margin-bottom: 1rem;
+        color: var(--text-color, #343a40);
+        border-collapse: collapse; /* Ensure borders are clean */
+    }
+    .professional-table th,
+    .professional-table td {
+        padding: 0.75rem;
+        vertical-align: top;
+        border-top: 1px solid var(--border-color, #dee2e6);
+    }
+    .professional-table thead th {
+        vertical-align: bottom;
+        border-bottom: 2px solid var(--border-color, #dee2e6);
+        text-align: left; /* Ensure headers are left-aligned */
+        font-weight: 600; /* Make headers bolder */
+        color: var(--text-color-headings, #212529);
+    }
+    .professional-table tbody + tbody {
+        border-top: 2px solid var(--border-color, #dee2e6);
+    }
+
     .admin-user-table th, .admin-user-table td {
-        padding: 10px 12px; /* Slightly less padding for admin table */
+        padding: 10px 12px;
         font-size: 0.9em;
     }
     .admin-user-table strong { font-weight: 500; }
-    .status-badge { /* General status badge styling */
-        padding: 4px 8px; border-radius: var(--border-radius-sm);
+    .status-badge {
+        padding: 4px 8px; border-radius: var(--border-radius-sm, .2rem);
         font-size: 0.8em; font-weight: 600; color: white;
+        display: inline-block; /* Ensure padding and radius apply correctly */
     }
-    .status-admin { background-color: var(--secondary-color); } /* Gold for admin */
-    .status-user { background-color: var(--text-color-light); } /* Gray for regular user */
+    .status-admin { background-color: var(--secondary-color, #ffc107); }
+    .status-user { background-color: var(--text-color-light, #6c757d); }
 
     .actions-cell { white-space: nowrap; text-align: right; }
     .actions-cell .action-btn { margin-left: 5px; padding: 5px 8px; font-size: 0.85em; }
     .actions-cell .action-btn i { margin-right: 4px; }
-    .delete-form { display: inline-block; }
+    .delete-form { display: inline-block; margin-left: 5px; }
 
     .btn-block { width: 100%; margin-top: 10px; text-align: center; }
     .badge-notification {
-        background-color: var(--accent-color); /* Red */
+        background-color: var(--accent-color, #dc3545);
         color: white;
         border-radius: 10px;
         padding: 2px 7px;
@@ -169,8 +288,8 @@
         margin-left: 8px;
         font-weight: bold;
     }
-    .panel-empty-state { text-align: center; padding: 20px; color: var(--text-color-light); }
-    .panel-empty-state i { font-size: 1.8em; margin-bottom: 10px; color: var(--border-color); }
+    .panel-empty-state { text-align: center; padding: 20px; color: var(--text-color-light, #6c757d); }
+    .panel-empty-state i { font-size: 1.8em; margin-bottom: 10px; color: var(--border-color, #dee2e6); }
 
 </style>
 {% endblock %}

@@ -3,26 +3,225 @@
 {% block title %}Login{% endblock %}
 
 {% block content %}
-    <div class="form-container" style="max-width: 400px; margin: 20px auto;">
-        <h2>Login</h2>
+<div class="login-page-container">
+    <div class="login-card">
+        <div class="login-header">
+            <i class="fas fa-sign-in-alt login-icon"></i>
+            <h2>Welcome Back!</h2>
+            <p class="login-subtitle">Please enter your credentials to log in.</p>
+        </div>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div class="flash-messages-container">
+                    {% for category, message in messages %}
+                        <div class="alert alert-{{ category if category else 'info' }}">{{ message }}</div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
+
         {% if g.user %}
-            <p>You are already logged in as <strong>{{ g.user.username }}</strong>.</p>
-            <p><a href="{{ url_for('dashboard') }}">Go to Dashboard</a></p>
+            <div class="already-logged-in-message">
+                <p><i class="fas fa-check-circle"></i> You are already logged in as <strong>{{ g.user.username }}</strong>.</p>
+                <a href="{{ url_for('dashboard') }}" class="btn btn-primary btn-block">Go to Dashboard</a>
+            </div>
         {% else %}
-            <form method="post" action="{{ url_for('login') }}">
-                <div>
-                    <label for="username">Username</label>
-                    <input type="text" name="username" id="username" required>
+            <form method="post" action="{{ url_for('login') }}" class="login-form">
+                <div class="form-group">
+                    <label for="username"><i class="fas fa-user"></i> Username</label>
+                    <input type="text" name="username" id="username" class="form-control" placeholder="Enter your username" required>
                 </div>
-                <div>
-                    <label for="password">Password</label>
-                    <input type="password" name="password" id="password" required>
+                <div class="form-group">
+                    <label for="password"><i class="fas fa-lock"></i> Password</label>
+                    <input type="password" name="password" id="password" class="form-control" placeholder="Enter your password" required>
                 </div>
-                <div>
-                    <input type="submit" value="Login">
+                <div class="form-group">
+                    <button type="submit" class="btn btn-primary btn-lg btn-block login-submit-btn">
+                        <i class="fas fa-arrow-right"></i> Login
+                    </button>
                 </div>
             </form>
-            <p style="margin-top: 15px;">Don't have an account? <a href="{{ url_for('register') }}">Register here</a> or go to <a href="{{ url_for('index') }}">Home Page</a>.</p>
+            <div class="login-footer-links">
+                <p>Don't have an account? <a href="{{ url_for('register') }}">Register here</a></p>
+                <p><a href="{{ url_for('index') }}">Back to Home Page</a></p>
+            </div>
         {% endif %}
     </div>
+</div>
+
+<style>
+    /* Assuming :root variables are defined in base.html or a global CSS file
+       e.g., --primary-color, --card-bg, --border-radius-md, --shadow-lg, etc. */
+
+    body, html {
+        /* Ensure full height for vertical centering if not already set in base.html */
+        /* height: 100%; */
+    }
+
+    .login-page-container {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 80vh; /* Adjust as needed, or 100vh if no header/footer outside this block */
+        padding: 20px;
+        background-color: var(--body-bg, #f4f7f6); /* A light, neutral page background */
+        /* Optional: Add a subtle gradient or image background */
+        /* background-image: linear-gradient(135deg, var(--primary-color-light, #e0f7fa) 0%, var(--secondary-color-light, #fff3e0) 100%); */
+    }
+
+    .login-card {
+        background-color: var(--card-bg, #ffffff);
+        padding: 30px 40px;
+        border-radius: var(--border-radius-lg, 12px); /* Slightly larger radius for a main card */
+        box-shadow: var(--shadow-lg, 0 10px 30px rgba(0, 0, 0, 0.1));
+        max-width: 450px;
+        width: 100%;
+        text-align: center; /* Center header text */
+    }
+
+    .login-header {
+        margin-bottom: 25px;
+    }
+
+    .login-icon {
+        font-size: 3em;
+        color: var(--primary-color, #007bff);
+        margin-bottom: 15px;
+        display: block; /* Make it a block to allow margin-bottom */
+    }
+
+    .login-card h2 {
+        font-family: var(--font-family-headings, sans-serif);
+        color: var(--text-color-headings, #333);
+        font-size: 1.8em;
+        margin-top: 0;
+        margin-bottom: 8px;
+    }
+
+    .login-subtitle {
+        font-size: 0.95em;
+        color: var(--text-color-light, #6c757d);
+        margin-bottom: 20px;
+    }
+
+    .flash-messages-container {
+        margin-bottom: 20px;
+    }
+    .alert { /* Basic alert styling, customize as needed or use Bootstrap's if available */
+        padding: 10px 15px;
+        margin-bottom: 10px;
+        border: 1px solid transparent;
+        border-radius: var(--border-radius-sm, 4px);
+        text-align: left;
+    }
+    .alert-danger { background-color: #f8d7da; color: #721c24; border-color: #f5c6cb;}
+    .alert-success { background-color: #d4edda; color: #155724; border-color: #c3e6cb;}
+    .alert-info { background-color: #d1ecf1; color: #0c5460; border-color: #bee5eb;}
+
+
+    .form-group {
+        margin-bottom: 20px;
+        text-align: left; /* Align labels and inputs left */
+    }
+
+    .form-group label {
+        display: block;
+        font-weight: 500;
+        margin-bottom: 8px;
+        color: var(--text-color, #555);
+        font-size: 0.9em;
+    }
+    .form-group label i {
+        margin-right: 6px;
+        color: var(--primary-color-light, #007bff); /* Icon color matches primary */
+    }
+
+    .form-control { /* Assuming this class is used for inputs, or style input[type="text/password"] directly */
+        width: 100%;
+        padding: 12px 15px;
+        font-size: 1em;
+        border: 1px solid var(--border-color, #ced4da);
+        border-radius: var(--border-radius-md, 6px);
+        box-sizing: border-box; /* Important for width 100% and padding */
+        transition: border-color 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+    }
+
+    .form-control::placeholder {
+        color: var(--text-color-placeholder, #aaa);
+    }
+
+    .form-control:focus {
+        border-color: var(--primary-color, #007bff);
+        box-shadow: 0 0 0 0.2rem rgba(var(--primary-color-rgb, 0,123,255), 0.25); /* Use primary color for focus ring */
+        outline: none;
+    }
+
+    .login-submit-btn {
+        /* Steal from the creative button but maybe slightly less flamboyant */
+        background-image: linear-gradient(45deg, var(--primary-color-dark, #0056b3) 0%, var(--primary-color, #007bff) 50%, var(--primary-color-light, #3395ff) 100%);
+        border: none;
+        color: white !important;
+        padding: 12px 20px; /* btn-lg might provide this */
+        font-weight: 600;
+        letter-spacing: 0.5px;
+        border-radius: var(--border-radius-pill, 50px); /* Pill shape if desired, or var(--border-radius-md) */
+        transition: all 0.3s ease;
+        width: 100%; /* btn-block might provide this */
+        margin-top: 10px; /* Space above the button */
+    }
+    .login-submit-btn i {
+        margin-right: 8px;
+        transition: transform 0.3s ease;
+    }
+
+    .login-submit-btn:hover, .login-submit-btn:focus {
+        background-image: linear-gradient(45deg, var(--primary-color, #007bff) 0%, var(--primary-color-light, #3395ff) 50%, var(--primary-color-dark, #0056b3) 100%);
+        transform: translateY(-2px);
+        box-shadow: 0 4px 10px rgba(var(--primary-color-rgb, 0,123,255), 0.3);
+        color: white !important;
+    }
+    .login-submit-btn:hover i {
+        transform: translateX(3px); /* Slight arrow movement */
+    }
+    .login-submit-btn:active {
+        transform: translateY(0);
+        box-shadow: 0 2px 5px rgba(var(--primary-color-rgb, 0,123,255), 0.2);
+    }
+
+    .login-footer-links {
+        margin-top: 25px;
+        font-size: 0.9em;
+    }
+    .login-footer-links p {
+        margin-bottom: 8px;
+        color: var(--text-color-light, #6c757d);
+    }
+    .login-footer-links a {
+        color: var(--primary-color, #007bff);
+        text-decoration: none;
+        font-weight: 500;
+    }
+    .login-footer-links a:hover {
+        text-decoration: underline;
+        color: var(--primary-color-dark, #0056b3);
+    }
+
+    .already-logged-in-message {
+        padding: 20px;
+        background-color: var(--info-bg-light, #e6f7ff); /* A light info background */
+        border: 1px solid var(--info-border, #91d5ff);
+        border-radius: var(--border-radius-md, 6px);
+        color: var(--info-text, #005288);
+    }
+    .already-logged-in-message p {
+        margin-bottom: 15px;
+        font-size: 1.05em;
+    }
+    .already-logged-in-message i {
+        color: var(--success-color, #28a745); /* Green checkmark */
+        margin-right: 8px;
+    }
+
+</style>
 {% endblock %}

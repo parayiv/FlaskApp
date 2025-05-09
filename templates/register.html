@@ -1,27 +1,268 @@
 {% extends 'base.html' %}
 
-{% block title %}Register{% endblock %}
+{% block title %}Register Account{% endblock %}
 
 {% block content %}
-    <div class="form-container" style="max-width: 400px; margin: 20px auto;">
-        <h2>Register New Account</h2>
+<div class="register-page-container">
+    <div class="auth-card"> {# Using a more generic class name if preferred, or register-card #}
+        <div class="auth-header">
+            <i class="fas fa-user-plus auth-icon"></i>
+            <h2>Create Your Account</h2>
+            <p class="auth-subtitle">Fill in the details below to get started.</p>
+        </div>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div class="flash-messages-container">
+                    {% for category, message in messages %}
+                        <div class="alert alert-{{ category if category else 'info' }}">{{ message }}</div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
+
         {% if g.user %}
-            <p>You are already logged in. If you want to register a new account, please <a href="{{ url_for('logout') }}">logout</a> first.</p>
+            <div class="already-logged-in-message">
+                <p><i class="fas fa-info-circle"></i> You are already logged in as <strong>{{ g.user.username }}</strong>.</p>
+                <p>If you want to register a new account, please <a href="{{ url_for('logout') }}" class="btn btn-outline-secondary btn-sm">logout</a> first.</p>
+                <a href="{{ url_for('dashboard') }}" class="btn btn-primary btn-block" style="margin-top:15px;">Go to Dashboard</a>
+            </div>
         {% else %}
-            <form method="post" action="{{ url_for('register') }}">
-                <div>
-                    <label for="username">Username</label>
-                    <input type="text" name="username" id="username" required>
+            <form method="post" action="{{ url_for('register') }}" class="auth-form">
+                <div class="form-group">
+                    <label for="username"><i class="fas fa-user"></i> Username</label>
+                    <input type="text" name="username" id="username" class="form-control" placeholder="Choose a username" required>
                 </div>
-                <div>
-                    <label for="password">Password</label>
-                    <input type="password" name="password" id="password" required>
+                <div class="form-group">
+                    <label for="password"><i class="fas fa-lock"></i> Password</label>
+                    <input type="password" name="password" id="password" class="form-control" placeholder="Create a strong password" required>
                 </div>
-                <div>
-                    <input type="submit" value="Register">
+                {# Optional: Add "Confirm Password" field for better UX
+                <div class="form-group">
+                    <label for="confirm_password"><i class="fas fa-shield-alt"></i> Confirm Password</label>
+                    <input type="password" name="confirm_password" id="confirm_password" class="form-control" placeholder="Confirm your password" required>
+                </div>
+                #}
+                <div class="form-group">
+                    <button type="submit" class="btn btn-primary btn-lg btn-block auth-submit-btn">
+                        <i class="fas fa-check-circle"></i> Register Account
+                    </button>
                 </div>
             </form>
-            <p style="margin-top: 15px;">Already have an account? <a href="{{ url_for('login') }}">Login here</a> or go to <a href="{{ url_for('index') }}">Home Page</a>.</p>
+            <div class="auth-footer-links">
+                <p>Already have an account? <a href="{{ url_for('login') }}">Login here</a></p>
+                <p><a href="{{ url_for('index') }}">Back to Home Page</a></p>
+            </div>
         {% endif %}
     </div>
+</div>
+
+<style>
+    /* --- CSS Variables (Assume these are defined in base.html or a global CSS) ---
+    :root {
+        --primary-color: #007bff;
+        --primary-color-dark: #0056b3;
+        --primary-color-light: #3395ff;
+        --primary-color-rgb: 0,123,255;
+        --secondary-color: #6c757d;
+        --success-color: #28a745;
+        --info-color: #17a2b8;
+        --warning-color: #ffc107;
+        --danger-color: #dc3545;
+        --light-color: #f8f9fa;
+        --dark-color: #343a40;
+
+        --body-bg: #f4f7f6;
+        --card-bg: #ffffff;
+        --text-color: #333;
+        --text-color-headings: #212529;
+        --text-color-light: #6c757d;
+        --text-color-placeholder: #aaa;
+        --border-color: #ced4da;
+
+        --border-radius-sm: .2rem;
+        --border-radius-md: .375rem;
+        --border-radius-lg: .5rem;
+        --border-radius-pill: 50px;
+
+        --shadow-sm: 0 .125rem .25rem rgba(0,0,0,.075);
+        --shadow-md: 0 .5rem 1rem rgba(0,0,0,.15);
+        --shadow-lg: 0 1rem 3rem rgba(0,0,0,.175);
+
+        --font-family-sans-serif: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+        --font-family-headings: "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; // Or your preferred heading font
+    }
+    */
+
+    .register-page-container { /* Can be same as .login-page-container */
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 80vh;
+        padding: 20px;
+        background-color: var(--body-bg, #f4f7f6);
+    }
+
+    .auth-card { /* Shared style for login and register cards */
+        background-color: var(--card-bg, #ffffff);
+        padding: 30px 40px;
+        border-radius: var(--border-radius-lg, 12px);
+        box-shadow: var(--shadow-lg, 0 10px 30px rgba(0, 0, 0, 0.1));
+        max-width: 480px; /* Slightly wider if more fields */
+        width: 100%;
+        text-align: center;
+    }
+
+    .auth-header {
+        margin-bottom: 25px;
+    }
+
+    .auth-icon {
+        font-size: 3em;
+        color: var(--primary-color, #007bff);
+        margin-bottom: 15px;
+        display: block;
+    }
+
+    .auth-card h2 {
+        font-family: var(--font-family-headings, sans-serif);
+        color: var(--text-color-headings, #333);
+        font-size: 1.8em;
+        margin-top: 0;
+        margin-bottom: 8px;
+    }
+
+    .auth-subtitle {
+        font-size: 0.95em;
+        color: var(--text-color-light, #6c757d);
+        margin-bottom: 20px;
+    }
+
+    .flash-messages-container {
+        margin-bottom: 20px;
+    }
+    .alert {
+        padding: 10px 15px;
+        margin-bottom: 10px;
+        border: 1px solid transparent;
+        border-radius: var(--border-radius-sm, 4px);
+        text-align: left;
+    }
+    .alert-danger { background-color: #f8d7da; color: #721c24; border-color: #f5c6cb;} /* Define other alert types as needed */
+    .alert-success { background-color: #d4edda; color: #155724; border-color: #c3e6cb;}
+    .alert-info { background-color: #d1ecf1; color: #0c5460; border-color: #bee5eb;}
+    .alert-warning { background-color: #fff3cd; color: #856404; border-color: #ffeeba;}
+
+
+    .auth-form .form-group { /* Shared form group style */
+        margin-bottom: 20px;
+        text-align: left;
+    }
+
+    .auth-form .form-group label {
+        display: block;
+        font-weight: 500;
+        margin-bottom: 8px;
+        color: var(--text-color, #555);
+        font-size: 0.9em;
+    }
+    .auth-form .form-group label i {
+        margin-right: 6px;
+        color: var(--primary-color-light, #007bff); /* Or a slightly lighter shade of primary */
+    }
+
+    .form-control { /* Shared input style */
+        width: 100%;
+        padding: 12px 15px;
+        font-size: 1em;
+        border: 1px solid var(--border-color, #ced4da);
+        border-radius: var(--border-radius-md, 6px);
+        box-sizing: border-box;
+        transition: border-color 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+    }
+    .form-control::placeholder {
+        color: var(--text-color-placeholder, #aaa);
+    }
+    .form-control:focus {
+        border-color: var(--primary-color, #007bff);
+        box-shadow: 0 0 0 0.2rem rgba(var(--primary-color-rgb, 0,123,255), 0.25);
+        outline: none;
+    }
+
+    .auth-submit-btn { /* Shared submit button style */
+        background-image: linear-gradient(45deg, var(--primary-color-dark, #0056b3) 0%, var(--primary-color, #007bff) 50%, var(--primary-color-light, #3395ff) 100%);
+        border: none;
+        color: white !important;
+        padding: 12px 20px;
+        font-size: 1.05em; /* btn-lg might set this, or adjust manually */
+        font-weight: 600;
+        letter-spacing: 0.5px;
+        border-radius: var(--border-radius-pill, 50px);
+        transition: all 0.3s ease;
+        width: 100%;
+        margin-top: 10px;
+    }
+    .auth-submit-btn i {
+        margin-right: 8px;
+        transition: transform 0.3s ease;
+    }
+    .auth-submit-btn:hover, .auth-submit-btn:focus {
+        background-image: linear-gradient(45deg, var(--primary-color, #007bff) 0%, var(--primary-color-light, #3395ff) 50%, var(--primary-color-dark, #0056b3) 100%);
+        transform: translateY(-2px);
+        box-shadow: 0 4px 10px rgba(var(--primary-color-rgb, 0,123,255), 0.3);
+        color: white !important;
+    }
+    .auth-submit-btn:hover i {
+        /* Optional icon animation for register button */
+        /* transform: rotate(5deg); */
+    }
+    .auth-submit-btn:active {
+        transform: translateY(0);
+        box-shadow: 0 2px 5px rgba(var(--primary-color-rgb, 0,123,255), 0.2);
+    }
+
+    .auth-footer-links { /* Shared footer links style */
+        margin-top: 25px;
+        font-size: 0.9em;
+    }
+    .auth-footer-links p {
+        margin-bottom: 8px;
+        color: var(--text-color-light, #6c757d);
+    }
+    .auth-footer-links a {
+        color: var(--primary-color, #007bff);
+        text-decoration: none;
+        font-weight: 500;
+    }
+    .auth-footer-links a:hover {
+        text-decoration: underline;
+        color: var(--primary-color-dark, #0056b3);
+    }
+
+    .already-logged-in-message {
+        padding: 20px;
+        background-color: var(--info-bg-light, #e6f7ff);
+        border: 1px solid var(--info-border, #91d5ff);
+        border-radius: var(--border-radius-md, 6px);
+        color: var(--info-text, #005288);
+        text-align: left; /* Override card's center align for this block */
+    }
+    .already-logged-in-message p {
+        margin-bottom: 10px;
+        font-size: 1em;
+    }
+    .already-logged-in-message i {
+        color: var(--info-color, #17a2b8);
+        margin-right: 8px;
+    }
+    .already-logged-in-message .btn-outline-secondary {
+        border-color: var(--secondary-color, #6c757d);
+        color: var(--secondary-color, #6c757d);
+    }
+    .already-logged-in-message .btn-outline-secondary:hover {
+        background-color: var(--secondary-color, #6c757d);
+        color: white;
+    }
+
+</style>
 {% endblock %}

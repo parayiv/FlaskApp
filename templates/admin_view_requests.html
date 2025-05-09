@@ -4,65 +4,183 @@
 {% block title %}Admin - User Requests{% endblock %}
 
 {% block content %}
-<h1 class="page-title">User Requests</h1>
-<a href="{{ url_for('dashboard') }}" class="subtle-link" style="margin-bottom:20px; display:inline-block;">« Back to Admin Dashboard</a>
+<div class="admin-requests-container"> {# This container now ensures the panel below can be centered if needed #}
+    <header class="page-header-section">
+        <h1 class="page-title">User Requests Management</h1>
+        <a href="{{ url_for('dashboard') }}" class="btn btn-sm btn-outline-secondary back-link">
+            <i class="fas fa-arrow-left"></i> Back to Admin Dashboard
+        </a>
+    </header>
 
-{% if requests %}
-    <table class="table">
-        <thead>
-            <tr>
-                <th>ID</th>
-                <th>User</th>
-                <th>Type</th>
-                <th>Details</th>
-                <th>Submitted</th>
-                <th>Status & Notes</th> {# Combined column for status and notes #}
-                <!-- <th>Actions</th> (Removed if actions are within status column) -->
-            </tr>
-        </thead>
-        <tbody>
-        {% for req in requests %}
-            <tr>
-                <td>{{ req.id }}</td>
-                <td>{{ req.user_username }}</td>
-                <td>{{ req.request_type|capitalize }}</td>
-                <td style="white-space: pre-wrap; max-width: 250px;">{{ req.details }}</td>
-                <td>
-                    {% if req.submitted_at %}
-                        {{ req.submitted_at.strftime('%Y-%m-%d %H:%M') }}
-                    {% else %}
-                        N/A
-                    {% endif %}
-                </td>
-                <td>
-                    <form method="post" action="{{ url_for('admin_update_request_status', request_id=req.id) }}">
-                        <div style="margin-bottom: 5px;">
-                            <select name="status" class="form-control form-control-sm">
-                                <option value="pending" {{ 'selected' if req.status == 'pending' }}>Pending</option>
-                                <option value="approved" {{ 'selected' if req.status == 'approved' }}>Approved</option>
-                                <option value="rejected" {{ 'selected' if req.status == 'rejected' }}>Rejected</option>
-                            </select>
-                        </div>
-                        <div style="margin-bottom: 5px;">
-                            <textarea name="admin_notes" placeholder="Admin Notes (optional)" class="form-control form-control-sm" rows="2" style="width:100%; min-width: 180px;">{{ req.admin_notes or '' }}</textarea>
-                        </div>
-                        <input type="submit" value="Update Status" class="btn btn-sm btn-primary">
-                    </form>
-                </td>
-            </tr>
-        {% endfor %}
-        </tbody>
-    </table>
-{% else %}
-    <p>No user requests found.</p>
-{% endif %}
+    {% if requests %}
+        <div class="professional-panel"> {# This panel will be centered by its parent if parent has layout rules for it #}
+            <div class="table-responsive-wrapper">
+                <table class="professional-table admin-requests-table">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>User</th>
+                            <th>Type</th>
+                            <th class="details-col-header">Details</th> {# Unique class for header if needed #}
+                            <th>Submitted</th>
+                            <th class="status-col-header">Status & Notes</th> {# Unique class for header if needed #}
+                        </tr>
+                    </thead>
+                    <tbody>
+                    {% for req in requests %}
+                        <tr class="request-row-{{ req.status|lower }}">
+                            <td>{{ req.id }}</td>
+                            <td>{{ req.user_username }}</td>
+                            <td>
+                                <i class="fas {% if req.request_type == 'payslip' %}fa-file-invoice-dollar{% elif req.request_type == 'vacation' %}fa-plane-departure{% else %}fa-clipboard-list{% endif %} fa-fw type-icon"></i>
+                                {{ req.request_type|capitalize }}
+                            </td>
+                            <td class="details-cell">{{ req.details|nl2br }}</td> {# Changed class for clarity from .details-col #}
+                            <td class="date-cell">
+                                {% if req.submitted_at %}
+                                    {{ req.submitted_at.strftime('%Y-%m-%d') }}
+                                    <span class="time-muted">{{ req.submitted_at.strftime('%H:%M') }}</span>
+                                {% else %}
+                                    N/A
+                                {% endif %}
+                            </td>
+                            <td class="status-actions-cell">
+                                <form method="post" action="{{ url_for('admin_update_request_status', request_id=req.id) }}" class="update-status-form">
+                                    <div class="form-group-compact">
+                                        <select name="status" class="form-control form-control-sm status-select">
+                                            <option value="pending" {{ 'selected' if req.status == 'pending' }}>Pending</option>
+                                            <option value="approved" {{ 'selected' if req.status == 'approved' }}>Approved</option>
+                                            <option value="rejected" {{ 'selected' if req.status == 'rejected' }}>Rejected</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group-compact">
+                                        <textarea name="admin_notes" placeholder="Admin Notes..." class="form-control form-control-sm notes-textarea" rows="2">{{ req.admin_notes or '' }}</textarea>
+                                    </div>
+                                    <button type="submit" class="btn btn-sm btn-primary btn-block update-button">
+                                        <i class="fas fa-sync-alt"></i> Update
+                                    </button>
+                                </form>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    {% else %}
+        <div class="panel-empty-state" style="background-color: var(--card-bg); padding: 30px; border-radius: var(--border-radius-md); box-shadow: var(--shadow-sm); margin: 0 auto; max-width: 600px;">
+            <i class="fas fa-folder-open fa-3x" style="color: var(--text-color-light); margin-bottom: 15px;"></i>
+            <p style="font-size: 1.1em; color: var(--text-color-light);">No user requests found at the moment.</p>
+        </div>
+    {% endif %}
+</div>
 
 <style>
-    .table { width: 100%; margin-bottom: 1rem; color: #212529; border-collapse: collapse; }
-    .table th, .table td { padding: .6rem .75rem; vertical-align: top; border: 1px solid #dee2e6; }
-    .table thead th { vertical-align: bottom; border-bottom-width: 2px; background-color: #f1f1f1;}
-    .form-control-sm { padding: .25rem .5rem; font-size: .875rem; line-height: 1.5; border-radius: .2rem; border: 1px solid #ced4da; }
-    .btn-sm { padding: .25rem .5rem; font-size: .875rem; line-height: 1.5; border-radius: .2rem; }
-    .btn-primary { color: #fff; background-color: #007bff; border-color: #007bff; }
+    :root {
+        --row-bg-pending: #fceaea;
+        --row-bg-approved: #eaf7ec;
+        --row-bg-rejected: #eaf7ec;
+    }
+
+    .admin-requests-container {
+        /* This container will be centered by the main .container in base.html
+           if base.html's .container has max-width and margin:auto.
+           It ensures its children (like professional-panel) are within that centered block. */
+    }
+
+    .page-header-section {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 25px;
+    }
+    .page-header-section .page-title { margin-bottom: 0; }
+    /* .back-link and .btn-outline-secondary styles from base.html or previous version */
+
+    .professional-panel {
+        background-color: var(--card-bg);
+        padding: 20px 25px; /* Padding inside the panel, around the table-responsive-wrapper */
+        border-radius: var(--border-radius-md);
+        box-shadow: var(--shadow-md);
+        border: 1px solid var(--border-color);
+        /* It will take the width of .admin-requests-container.
+           If you want the panel itself to have a max-width and be centered
+           even if .admin-requests-container is wider, add:
+           max-width: 1400px; /* or your preferred max table width */
+        /* margin-left: auto; */
+        /* margin-right: auto; */
+        /* However, it's often better for base.html's .container to control overall page max-width. */
+    }
+
+    .table-responsive-wrapper {
+        overflow-x: auto; /* This is crucial for responsiveness */
+    }
+
+    .professional-table.admin-requests-table {
+        width: 100%; /* Ensures table tries to fill .table-responsive-wrapper */
+        border-collapse: collapse;
+        /* table-layout: auto; is default, which means cell widths are based on content */
+    }
+
+    .admin-requests-table th,
+    .admin-requests-table td {
+        padding: 9px 12px; /* Slightly adjusted padding for balance */
+        font-size: 0.9em;
+        border: 1px solid var(--border-color-light, #e9ecef);
+        vertical-align: middle;
+    }
+
+    .admin-requests-table thead th {
+        background-color: #f8f9fa;
+        font-weight: 600;
+        color: var(--text-color-dark);
+        text-transform: uppercase;
+        font-size: 0.8em;
+        letter-spacing: 0.5px;
+        border-bottom-width: 2px; /* Keep stronger bottom border for header */
+        border-top: none;
+        /* Removed individual L/R border none, rely on panel for outer look */
+    }
+
+    .admin-requests-table .type-icon {
+        color: var(--primary-color); opacity: 0.8; margin-right: 5px;
+    }
+
+    .details-cell { /* Class for the <td> */
+        max-width: 300px; /* Max width before wrapping for the details column's content */
+        min-width: 150px; /* Min width to prevent too much squishing */
+        white-space: pre-wrap;
+        word-break: break-word;
+        font-size: 0.88em;
+        line-height: 1.5;
+    }
+    .date-cell .time-muted { /* Class for the <td> */
+        display: block; font-size: 0.85em; color: var(--text-color-light);
+    }
+    .status-actions-cell { /* Class for the <td> */
+        min-width: 210px; /* Ensure enough space for the form */
+    }
+
+    /* Full Row Background Colors */
+    .admin-requests-table tbody tr.request-row-pending { background-color: var(--row-bg-pending); }
+    .admin-requests-table tbody tr.request-row-approved { background-color: var(--row-bg-approved); }
+    .admin-requests-table tbody tr.request-row-rejected { background-color: var(--row-bg-rejected); }
+
+    /* Subtle hover for all rows, slightly darkens the existing background */
+    .admin-requests-table tbody tr:hover td {
+        background-color: rgba(0,0,0,0.04) !important; /* Use !important if specific row bg overrides */
+    }
+
+    /* Form elements within the table cell */
+    .update-status-form .form-group-compact { margin-bottom: 6px; }
+    .form-control-sm {
+        padding: 0.3rem 0.6rem; font-size: 0.85em; line-height: 1.4;
+        border-radius: var(--border-radius-sm); background-color: var(--card-bg, #fff);
+    }
+    .notes-textarea { min-height: 40px; }
+    .btn-sm { padding: 0.3rem 0.75rem; font-size: 0.85em; line-height: 1.4; }
+    .btn-block { display: block; width: 100%; }
+    .update-button i { margin-right: 5px; }
+
 </style>
 {% endblock %}

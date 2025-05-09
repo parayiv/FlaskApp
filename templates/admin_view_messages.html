@@ -1,0 +1,32 @@
+{% extends 'base.html' %}
+
+{% block title %}Admin - View Messages{% endblock %}
+
+{% block content %}
+<h1 class="page-title">Incoming Messages</h1>
+<a href="{{ url_for('dashboard') }}" class="subtle-link" style="margin-bottom:20px; display:inline-block;">« Back to Admin Dashboard</a>
+
+{% if messages %}
+    <ul style="list-style: none; padding: 0;">
+        {% for message in messages %}
+        <li style="border: 1px solid #ddd; margin-bottom: 15px; padding: 15px; border-radius: 5px; background-color: {{ '#fff' if message.is_read else '#f9f9f9' }};">
+            <p><strong>From:</strong> {{ message.sender_username }}</p>
+            <p><strong>Subject:</strong> {{ message.subject }}</p>
+            <p><strong>Received:</strong> {{ message.timestamp.strftime('%Y-%m-%d %H:%M') }}</p>
+            <div style="margin-top: 10px; margin-bottom: 10px; padding-left: 10px; border-left: 3px solid #eee;">
+                {{ message.body|nl2br }} {# nl2br filter to respect newlines #}
+            </div>
+            {% if not message.is_read %}
+            <form method="post" action="{{ url_for('admin_mark_message_read', message_id=message.id) }}" style="display:inline;">
+                <input type="submit" value="Mark as Read" class="btn btn-sm btn-info">
+            </form>
+            {% else %}
+            <span class="badge badge-success" style="background-color: #d4edda; color: #155724; padding: 5px 8px; border-radius: 3px;">Read</span>
+            {% endif %}
+        </li>
+        {% endfor %}
+    </ul>
+{% else %}
+    <p>No messages found.</p>
+{% endif %}
+{% endblock %}

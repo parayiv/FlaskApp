@@ -1,0 +1,20 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ form_title }}{% endblock %}
+
+{% block content %}
+<div class="form-container" style="max-width: 600px; margin: 20px auto;">
+    <h2>{{ form_title }}</h2>
+    <form method="post">
+        <input type="hidden" name="request_type" value="{{ request_type }}">
+        <div>
+            <label for="details">{{ details_label }}</label>
+            <textarea name="details" id="details" rows="4" required style="width: 100%; padding: 10px; margin-bottom: 15px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;">{{ request.form.details or '' }}</textarea>
+        </div>
+        <div>
+            <input type="submit" value="Submit Request">
+        </div>
+    </form>
+    <p><a href="{{ url_for('dashboard') }}" class="subtle-link">Back to Dashboard</a></p>
+</div>
+{% endblock %}

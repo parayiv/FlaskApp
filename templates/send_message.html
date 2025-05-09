@@ -1,0 +1,23 @@
+{% extends 'base.html' %}
+
+{% block title %}Send Message to Admin{% endblock %}
+
+{% block content %}
+<div class="form-container" style="max-width: 600px; margin: 20px auto;">
+    <h2>Send a Message to Admin</h2>
+    <form method="post">
+        <div>
+            <label for="subject">Subject</label>
+            <input type="text" name="subject" id="subject" required value="{{ prefill_subject or request.form.subject or '' }}">
+        </div>
+        <div>
+            <label for="body">Message Body</label>
+            <textarea name="body" id="body" rows="6" required style="width: 100%; padding: 10px; margin-bottom: 15px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;">{{ request.form.body or '' }}</textarea>
+        </div>
+        <div>
+            <input type="submit" value="Send Message">
+        </div>
+    </form>
+     <p><a href="{{ url_for('dashboard') }}" class="subtle-link">Back to Dashboard</a></p>
+</div>
+{% endblock %}

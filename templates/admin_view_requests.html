@@ -1,0 +1,58 @@
+{% extends 'base.html' %}
+
+{% block title %}Admin - User Requests{% endblock %}
+
+{% block content %}
+<h1 class="page-title">User Requests</h1>
+<a href="{{ url_for('dashboard') }}" class="subtle-link" style="margin-bottom:20px; display:inline-block;">« Back to Admin Dashboard</a>
+
+{% if requests %}
+    <table class="table">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>User</th>
+                <th>Type</th>
+                <th>Details</th>
+                <th>Submitted</th>
+                <th>Status</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for req in requests %}
+            <tr>
+                <td>{{ req.id }}</td>
+                <td>{{ req.user_username }}</td>
+                <td>{{ req.request_type|capitalize }}</td>
+                <td style="white-space: pre-wrap; max-width: 300px;">{{ req.details }}</td>
+                <td>{{ req.submitted_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                <td>
+                    <form method="post" action="{{ url_for('admin_update_request_status', request_id=req.id) }}">
+                        <select name="status" onchange="this.form.submit()">
+                            <option value="pending" {{ 'selected' if req.status == 'pending' }}>Pending</option>
+                            <option value="approved" {{ 'selected' if req.status == 'approved' }}>Approved</option>
+                            <option value="rejected" {{ 'selected' if req.status == 'rejected' }}>Rejected</option>
+                        </select>
+                        {# Add admin notes field if desired #}
+                        {# <textarea name="admin_notes" placeholder="Admin Notes">{{ req.admin_notes or '' }}</textarea> #}
+                        {# <input type="submit" value="Update" class="btn btn-sm"> #}
+                    </form>
+                </td>
+                <td>
+                    {# Further actions like view details, add notes more formally #}
+                </td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+{% else %}
+    <p>No user requests found.</p>
+{% endif %}
+
+<style>
+    .table { width: 100%; margin-bottom: 1rem; color: #212529; border-collapse: collapse; }
+    .table th, .table td { padding: .75rem; vertical-align: top; border: 1px solid #dee2e6; }
+    .table thead th { vertical-align: bottom; border-bottom-width: 2px; background-color: #f1f1f1;}
+</style>
+{% endblock %}

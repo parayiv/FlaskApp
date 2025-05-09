@@ -1,0 +1,35 @@
+{% extends 'base.html' %}
+
+{% block title %}User Dashboard{% endblock %}
+
+{% block content %}
+<div class="user-dashboard">
+    <h1 class="page-title">Welcome, {{ g.user.username }}!</h1>
+    <p>This is your personal dashboard.</p>
+
+    <ul class="dashboard-links">
+        <li><a href="{{ url_for('send_message') }}" class="btn btn-action">Send a Message to Admin</a></li>
+        <li><a href="{{ url_for('new_request_form', type='payslip') }}" class="btn btn-action">Request Payslip</a></li>
+        <li><a href="{{ url_for('new_request_form', type='vacation') }}" class="btn btn-action">Request Vacation</a></li>
+    </ul>
+
+    {# Optional: Display status of user's past requests #}
+    {# You would need to fetch these in the 'dashboard' route for non-admins #}
+    {# For example:
+       {% if user_requests %}
+       <h3>Your Recent Requests</h3>
+       <ul>
+       {% for req in user_requests %}
+         <li>{{ req.request_type }}: {{ req.details }} - Status: {{ req.status }}</li>
+       {% endfor %}
+       </ul>
+       {% endif %}
+    #}
+</div>
+<style>
+    .user-dashboard .dashboard-links { list-style: none; padding: 0; }
+    .user-dashboard .dashboard-links li { margin-bottom: 15px; }
+    .btn.btn-action { display: block; background-color: #5cb85c; color: white; padding: 12px 20px; text-align: center; border-radius: 5px; text-decoration: none; font-size: 1.1em; }
+    .btn.btn-action:hover { background-color: #4cae4c; }
+</style>
+{% endblock %}

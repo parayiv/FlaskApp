@@ -1,3 +1,4 @@
+<!-- templates/admin_view_requests.html -->
 {% extends 'base.html' %}
 
 {% block title %}Admin - User Requests{% endblock %}
@@ -15,8 +16,8 @@
                 <th>Type</th>
                 <th>Details</th>
                 <th>Submitted</th>
-                <th>Status</th>
-                <th>Actions</th>
+                <th>Status & Notes</th> {# Combined column for status and notes #}
+                <!-- <th>Actions</th> (Removed if actions are within status column) -->
             </tr>
         </thead>
         <tbody>
@@ -25,22 +26,28 @@
                 <td>{{ req.id }}</td>
                 <td>{{ req.user_username }}</td>
                 <td>{{ req.request_type|capitalize }}</td>
-                <td style="white-space: pre-wrap; max-width: 300px;">{{ req.details }}</td>
-                <td>{{ req.submitted_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                <td style="white-space: pre-wrap; max-width: 250px;">{{ req.details }}</td>
                 <td>
-                    <form method="post" action="{{ url_for('admin_update_request_status', request_id=req.id) }}">
-                        <select name="status" onchange="this.form.submit()">
-                            <option value="pending" {{ 'selected' if req.status == 'pending' }}>Pending</option>
-                            <option value="approved" {{ 'selected' if req.status == 'approved' }}>Approved</option>
-                            <option value="rejected" {{ 'selected' if req.status == 'rejected' }}>Rejected</option>
-                        </select>
-                        {# Add admin notes field if desired #}
-                        {# <textarea name="admin_notes" placeholder="Admin Notes">{{ req.admin_notes or '' }}</textarea> #}
-                        {# <input type="submit" value="Update" class="btn btn-sm"> #}
-                    </form>
+                    {% if req.submitted_at %}
+                        {{ req.submitted_at.strftime('%Y-%m-%d %H:%M') }}
+                    {% else %}
+                        N/A
+                    {% endif %}
                 </td>
                 <td>
-                    {# Further actions like view details, add notes more formally #}
+                    <form method="post" action="{{ url_for('admin_update_request_status', request_id=req.id) }}">
+                        <div style="margin-bottom: 5px;">
+                            <select name="status" class="form-control form-control-sm">
+                                <option value="pending" {{ 'selected' if req.status == 'pending' }}>Pending</option>
+                                <option value="approved" {{ 'selected' if req.status == 'approved' }}>Approved</option>
+                                <option value="rejected" {{ 'selected' if req.status == 'rejected' }}>Rejected</option>
+                            </select>
+                        </div>
+                        <div style="margin-bottom: 5px;">
+                            <textarea name="admin_notes" placeholder="Admin Notes (optional)" class="form-control form-control-sm" rows="2" style="width:100%; min-width: 180px;">{{ req.admin_notes or '' }}</textarea>
+                        </div>
+                        <input type="submit" value="Update Status" class="btn btn-sm btn-primary">
+                    </form>
                 </td>
             </tr>
         {% endfor %}
@@ -52,7 +59,10 @@
 
 <style>
     .table { width: 100%; margin-bottom: 1rem; color: #212529; border-collapse: collapse; }
-    .table th, .table td { padding: .75rem; vertical-align: top; border: 1px solid #dee2e6; }
+    .table th, .table td { padding: .6rem .75rem; vertical-align: top; border: 1px solid #dee2e6; }
     .table thead th { vertical-align: bottom; border-bottom-width: 2px; background-color: #f1f1f1;}
+    .form-control-sm { padding: .25rem .5rem; font-size: .875rem; line-height: 1.5; border-radius: .2rem; border: 1px solid #ced4da; }
+    .btn-sm { padding: .25rem .5rem; font-size: .875rem; line-height: 1.5; border-radius: .2rem; }
+    .btn-primary { color: #fff; background-color: #007bff; border-color: #007bff; }
 </style>
 {% endblock %}

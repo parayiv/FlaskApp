@@ -201,7 +201,6 @@ def login():
 @login_required
 def dashboard():
     if g.user['is_admin']:
-        # ... (admin logic remains the same) ...
         db = get_db()
         all_users = db.execute('SELECT id, username, is_admin FROM users ORDER BY username').fetchall()
         unread_messages_count = db.execute(
@@ -215,33 +214,41 @@ def dashboard():
                                unread_messages_count=unread_messages_count,
                                pending_requests_count=pending_requests_count)
     else:
+        # This is the part for the regular user
         db = get_db()
         user_requests_raw = db.execute(
-            "SELECT id, request_type, details, status, submitted_at FROM requests WHERE user_id = ? ORDER BY submitted_at DESC",
+            """SELECT id, request_type, details, status, submitted_at, admin_notes
+               FROM requests
+               WHERE user_id = ?
+               ORDER BY submitted_at DESC""",
             (g.user['id'],)
         ).fetchall()
 
         user_requests_processed = []
-        for req_row in user_requests_raw:
-            req_dict = dict(req_row)
-            try:
-                if isinstance(req_dict['submitted_at'], str):
-                    dt_obj = datetime.strptime(req_dict['submitted_at'], '%Y-%m-%d %H:%M:%S.%f')
-                elif isinstance(req_dict['submitted_at'], datetime):
-                    dt_obj = req_dict['submitted_at']
-                else:
-                    dt_obj = None
-            except ValueError:
+        if user_requests_raw: # Check if there are any requests
+            for req_row in user_requests_raw:
+                req_dict = dict(req_row)
+                # Timestamp conversion (ensure this logic is robust from previous step)
                 try:
                     if isinstance(req_dict['submitted_at'], str):
-                        dt_obj = datetime.strptime(req_dict['submitted_at'], '%Y-%m-%d %H:%M:%S')
-                    else:
+                        # Try with microseconds first
+                        dt_obj = datetime.strptime(req_dict['submitted_at'], '%Y-%m-%d %H:%M:%S.%f')
+                    elif isinstance(req_dict['submitted_at'], datetime): # Already a datetime object
                         dt_obj = req_dict['submitted_at']
-                except ValueError as e:
-                    app.logger.error(f"Error parsing user_request submitted_at string '{req_dict['submitted_at']}': {e}")
-                    dt_obj = None
-            req_dict['submitted_at'] = dt_obj
-            user_requests_processed.append(req_dict)
+                    else:
+                        dt_obj = None
+                except ValueError:
+                    # If parsing with microseconds fails, try without
+                    try:
+                        if isinstance(req_dict['submitted_at'], str):
+                            dt_obj = datetime.strptime(req_dict['submitted_at'], '%Y-%m-%d %H:%M:%S')
+                        else: # Fallback if not string or already datetime
+                            dt_obj = req_dict['submitted_at']
+                    except ValueError as e:
+                        app.logger.error(f"Error parsing user_request submitted_at string '{req_dict['submitted_at']}': {e}")
+                        dt_obj = None # Or some default
+                req_dict['submitted_at'] = dt_obj
+                user_requests_processed.append(req_dict)
 
         return render_template('dashboard_user.html', user_requests=user_requests_processed)
 

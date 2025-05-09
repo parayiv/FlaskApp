@@ -7,29 +7,137 @@
     <h1 class="page-title">Welcome, {{ g.user.username }}!</h1>
     <p>This is your personal dashboard.</p>
 
-    <ul class="dashboard-links">
-        <li><a href="{{ url_for('send_message') }}" class="btn btn-action">Send a Message to Admin</a></li>
-        <li><a href="{{ url_for('new_request_form', type='payslip') }}" class="btn btn-action">Request Payslip</a></li>
-        <li><a href="{{ url_for('new_request_form', type='vacation') }}" class="btn btn-action">Request Vacation</a></li>
-    </ul>
+    <section class="dashboard-actions">
+        <h2>Quick Actions</h2>
+        <ul class="dashboard-links">
+            <li><a href="{{ url_for('send_message') }}" class="btn btn-action">Send a Message to Admin</a></li>
+            <li><a href="{{ url_for('new_request_form', type='payslip') }}" class="btn btn-action">Request Payslip</a></li>
+            <li><a href="{{ url_for('new_request_form', type='vacation') }}" class="btn btn-action">Request Vacation</a></li>
+            {# Add more request types here if needed #}
+        </ul>
+    </section>
 
-    {# Optional: Display status of user's past requests #}
-    {# You would need to fetch these in the 'dashboard' route for non-admins #}
-    {# For example:
-       {% if user_requests %}
-       <h3>Your Recent Requests</h3>
-       <ul>
-       {% for req in user_requests %}
-         <li>{{ req.request_type }}: {{ req.details }} - Status: {{ req.status }}</li>
-       {% endfor %}
-       </ul>
-       {% endif %}
-    #}
+    <section class="user-requests-section">
+        <h2>Your Submitted Requests</h2>
+        {% if user_requests %}
+            <table class="table user-requests-table">
+                <thead>
+                    <tr>
+                        <th>Type</th>
+                        <th>Details</th>
+                        <th>Submitted On</th>
+                        <th>Status</th>
+                        <th>Admin Notes</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for req in user_requests %}
+                    <tr>
+                        <td>{{ req.request_type|capitalize }}</td>
+                        <td class="request-details">{{ req.details }}</td>
+                        <td>
+                            {% if req.submitted_at %}
+                                {{ req.submitted_at.strftime('%Y-%m-%d %H:%M') }}
+                            {% else %}
+                                N/A
+                            {% endif %}
+                        </td>
+                        <td>
+                            <span class="status-badge status-{{ req.status|lower }}">
+                                {{ req.status|capitalize }}
+                            </span>
+                        </td>
+                        <td class="admin-notes">
+                            {{ req.admin_notes if req.admin_notes else '-' }}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <p>You have not submitted any requests yet.</p>
+            <p>Use the links above to make a new request.</p>
+        {% endif %}
+    </section>
 </div>
+
 <style>
-    .user-dashboard .dashboard-links { list-style: none; padding: 0; }
-    .user-dashboard .dashboard-links li { margin-bottom: 15px; }
-    .btn.btn-action { display: block; background-color: #5cb85c; color: white; padding: 12px 20px; text-align: center; border-radius: 5px; text-decoration: none; font-size: 1.1em; }
-    .btn.btn-action:hover { background-color: #4cae4c; }
+    .user-dashboard .dashboard-actions {
+        margin-bottom: 30px;
+        padding: 20px;
+        background-color: #f9f9f9;
+        border-radius: 8px;
+    }
+    .user-dashboard .dashboard-actions h2,
+    .user-dashboard .user-requests-section h2 {
+        margin-top: 0;
+        color: #333;
+        border-bottom: 1px solid #eee;
+        padding-bottom: 10px;
+        margin-bottom: 20px;
+    }
+    .user-dashboard .dashboard-links {
+        list-style: none;
+        padding: 0;
+        display: flex; /* Arrange links in a row */
+        gap: 15px; /* Space between links */
+        flex-wrap: wrap; /* Allow wrapping on smaller screens */
+    }
+    .user-dashboard .dashboard-links li {
+        /* margin-bottom: 15px; (Removed as gap handles spacing) */
+    }
+    .btn.btn-action {
+        display: inline-block; /* Changed from block to inline-block for flex layout */
+        background-color: #5cb85c;
+        color: white;
+        padding: 10px 18px; /* Slightly adjusted padding */
+        text-align: center;
+        border-radius: 5px;
+        text-decoration: none;
+        font-size: 1em; /* Adjusted font size */
+        transition: background-color 0.3s;
+    }
+    .btn.btn-action:hover {
+        background-color: #4cae4c;
+    }
+
+    .user-requests-section {
+        margin-top: 20px;
+    }
+    .user-requests-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 15px;
+    }
+    .user-requests-table th,
+    .user-requests-table td {
+        border: 1px solid #ddd;
+        padding: 10px 12px;
+        text-align: left;
+        vertical-align: top;
+    }
+    .user-requests-table thead th {
+        background-color: #f1f1f1;
+        font-weight: 600;
+    }
+    .user-requests-table tr:nth-child(even) {
+        background-color: #f9f9f9;
+    }
+    .request-details, .admin-notes {
+        white-space: pre-wrap; /* To respect newlines in details and notes */
+        max-width: 300px; /* Prevent overly wide columns */
+        word-break: break-word;
+    }
+    .status-badge {
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-size: 0.85em;
+        font-weight: bold;
+        color: white;
+        text-transform: uppercase;
+    }
+    .status-pending { background-color: #ffc107; color: #333; } /* Yellow for pending */
+    .status-approved { background-color: #28a745; } /* Green for approved */
+    .status-rejected { background-color: #dc3545; } /* Red for rejected */
 </style>
 {% endblock %}

@@ -1,0 +1,27 @@
+{% extends 'base.html' %}
+
+{% block title %}Register{% endblock %}
+
+{% block content %}
+    <div class="form-container" style="max-width: 400px; margin: 20px auto;">
+        <h2>Register New Account</h2>
+        {% if g.user %}
+            <p>You are already logged in. If you want to register a new account, please <a href="{{ url_for('logout') }}">logout</a> first.</p>
+        {% else %}
+            <form method="post" action="{{ url_for('register') }}">
+                <div>
+                    <label for="username">Username</label>
+                    <input type="text" name="username" id="username" required>
+                </div>
+                <div>
+                    <label for="password">Password</label>
+                    <input type="password" name="password" id="password" required>
+                </div>
+                <div>
+                    <input type="submit" value="Register">
+                </div>
+            </form>
+            <p style="margin-top: 15px;">Already have an account? <a href="{{ url_for('login') }}">Login here</a> or go to <a href="{{ url_for('index') }}">Home Page</a>.</p>
+        {% endif %}
+    </div>
+{% endblock %}

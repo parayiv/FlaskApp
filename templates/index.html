@@ -1,0 +1,34 @@
+<!-- templates/index.html -->
+{% extends 'base.html' %}
+
+{% block title %}Login - Welcome!{% endblock %}
+
+{% block content %}
+    {% if g.user %}
+        <h1 class="page-title">Welcome Back, {{ g.user.username }}!</h1>
+        <div class="text-center">
+            <p>You are already logged in.</p>
+            <p><a href="{{ url_for('dashboard') }}" class="subtle-link" style="font-size: 1.1em; background-color: #3498db; color: white; padding: 10px 15px; border-radius: 5px; text-decoration: none; display: inline-block;">Go to Dashboard</a></p>
+        </div>
+    {% else %}
+        <div class="form-container">
+            <h2>Login to Your Account</h2>
+            <form method="post" action="{{ url_for('login') }}"> {# Action still points to /login #}
+                <div>
+                    <label for="login_username">Username</label>
+                    <input type="text" name="username" id="login_username" required value="{{ request.form.username or '' }}">
+                </div>
+                <div>
+                    <label for="login_password">Password</label>
+                    <input type="password" name="password" id="login_password" required>
+                </div>
+                <div>
+                    <input type="submit" value="Login">
+                </div>
+            </form>
+            <p class="auth-switch-link">
+                Don't have an account? <a href="{{ url_for('register') }}" class="subtle-link">Register here</a>
+            </p>
+        </div>
+    {% endif %}
+{% endblock %}

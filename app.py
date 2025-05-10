@@ -10,6 +10,7 @@ from jinja2 import pass_eval_context
 from markupsafe import Markup, escape
 import uuid
 from weasyprint import HTML, CSS # For PDF generation - ENSURE IT'S INSTALLED WITH DEPENDENCIES
+from urllib.parse import unquote
 
 # --- App Configuration ---
 app = Flask(__name__)
@@ -152,12 +153,69 @@ def logout(): session.clear(); flash('You have been logged out.', 'success'); re
 def dashboard():
     current_user = getattr(g, 'user', None)
     db = get_db()
+
     if current_user['is_admin']:
         all_users = db.execute('SELECT id, username, is_admin, full_name, gender, department FROM users ORDER BY username').fetchall()
         unread_messages_count = db.execute('SELECT COUNT(id) FROM messages WHERE is_read = 0').fetchone()[0]
         pending_requests_count = db.execute("SELECT COUNT(id) FROM requests WHERE status = 'pending'").fetchone()[0]
-        return render_template('dashboard_admin.html', all_users=all_users, unread_messages_count=unread_messages_count, pending_requests_count=pending_requests_count)
+
+        # 1. Employee Count per Department (existing)
+        department_counts_raw = db.execute(
+            """SELECT 
+                   CASE WHEN department IS NULL OR department = '' THEN 'Unassigned' ELSE department END as department_name, 
+                   COUNT(id) as employee_count 
+               FROM users 
+               GROUP BY department_name 
+               ORDER BY employee_count DESC"""
+        ).fetchall()
+        department_counts = [dict(row) for row in department_counts_raw]
+
+        # 2. Vacation Request Counts per Department (existing)
+        vacation_stats_raw = db.execute("""
+            SELECT 
+                CASE WHEN u.department IS NULL OR u.department = '' THEN 'Unassigned' ELSE u.department END as department_name,
+                SUM(CASE WHEN r.status = 'approved' THEN 1 ELSE 0 END) as approved_vacations,
+                SUM(CASE WHEN r.status = 'pending' THEN 1 ELSE 0 END) as pending_vacations
+            FROM requests r
+            JOIN users u ON r.user_id = u.id
+            WHERE r.request_type = 'vacation'
+            GROUP BY department_name
+            ORDER BY department_name
+        """).fetchall()
+        vacation_stats_by_department = [dict(row) for row in vacation_stats_raw]
+        
+        # 3. Payslip Request Counts per Department (NEW)
+        payslip_stats_raw = db.execute("""
+            SELECT
+                CASE WHEN u.department IS NULL OR u.department = '' THEN 'Unassigned' ELSE u.department END as department_name,
+                SUM(CASE WHEN r.status = 'approved' THEN 1 ELSE 0 END) as approved_payslips,
+                SUM(CASE WHEN r.status = 'pending' THEN 1 ELSE 0 END) as pending_payslips
+            FROM requests r
+            JOIN users u ON r.user_id = u.id
+            WHERE r.request_type = 'payslip'
+            GROUP BY department_name
+            ORDER BY department_name
+        """).fetchall()
+        payslip_stats_by_department = [dict(row) for row in payslip_stats_raw]
+
+        # Existing simple total for overview card (can be kept or derived from new stats)
+        approved_payslips_total_row = db.execute(
+            "SELECT COUNT(id) as total FROM requests WHERE request_type = 'payslip' AND status = 'approved'"
+        ).fetchone()
+        approved_payslips_total = approved_payslips_total_row['total'] if approved_payslips_total_row else 0
+
+
+        return render_template('dashboard_admin.html',
+                               all_users=all_users,
+                               unread_messages_count=unread_messages_count,
+                               pending_requests_count=pending_requests_count,
+                               department_counts=department_counts,
+                               vacation_stats_by_department=vacation_stats_by_department,
+                               payslip_stats_by_department=payslip_stats_by_department, # NEW
+                               approved_payslips_total=approved_payslips_total
+                              )
     else:
+        # ... (existing regular user dashboard logic - unchanged) ...
         user_requests_raw = db.execute("SELECT r.id, r.request_type, r.details, r.status, r.submitted_at, r.admin_notes, r.payslip_filename, r.vacation_approval_filename FROM requests r WHERE r.user_id = ? ORDER BY r.submitted_at DESC", (current_user['id'],)).fetchall()
         user_requests_processed = []
         for row in user_requests_raw:
@@ -275,6 +333,28 @@ def admin_view_user_profile(user_id):
         else: item['submitted_at'] = None
         requests_made_processed.append(item)
     return render_template('admin_user_profile.html', target_user=user, messages_sent=messages_sent_processed, requests_made=requests_made_processed)
+
+@app.route('/admin/department/<path:department_name>/users') # The URL rule
+@login_required
+@admin_required
+def admin_view_department_users(department_name): # This function name becomes the endpoint
+    db = get_db()
+    
+    actual_department_name = unquote(department_name)
+
+    query = "SELECT id, username, full_name, gender, is_admin FROM users WHERE department = ?"
+    params = [actual_department_name]
+
+    if actual_department_name == 'Unassigned':
+        query = "SELECT id, username, full_name, gender, is_admin FROM users WHERE department IS NULL OR department = ''"
+        params = [] 
+
+    department_users = db.execute(query, tuple(params)).fetchall()
+
+    return render_template('admin_department_users.html',
+                           department_name=actual_department_name,
+                           users=department_users)
+
 
 # --- Messaging Routes ---
 @app.route('/messages/send', methods=['GET', 'POST'])

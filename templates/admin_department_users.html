@@ -1,0 +1,93 @@
+<!-- templates/admin_department_users.html -->
+{% extends 'base.html' %}
+
+{% block title %}Users in {{ department_name }}{% endblock %}
+
+{% block content %}
+<div class="department-users-container">
+    <header class="page-header-section" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px;">
+        <h1 class="page-title">
+            <i class="fas fa-building"></i> Users in Department: {{ department_name }}
+        </h1>
+        <a href="{{ url_for('dashboard') }}" class="btn btn-sm btn-outline-secondary">
+            <i class="fas fa-arrow-left"></i> Back to Admin Dashboard
+        </a>
+    </header>
+
+    {% if users %}
+        <div class="table-responsive-wrapper professional-panel">
+            <table class="professional-table admin-user-table"> {# Re-use admin-user-table for similar styling #}
+                <thead>
+                    <tr>
+                        <th>Username</th>
+                        <th>Full Name</th>
+                        <th>Gender</th>
+                        <th>Admin?</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for user_item in users %}
+                    <tr>
+                        <td>
+                            <a href="{{ url_for('admin_view_user_profile', user_id=user_item.id) }}" class="username-link" title="View {{ user_item.username }}'s Profile">
+                                <strong>{{ user_item.username }}</strong>
+                            </a>
+                        </td>
+                        <td>{{ user_item.full_name if user_item.full_name else '-' }}</td>
+                        <td>{{ user_item.gender if user_item.gender else '-' }}</td>
+                        <td>
+                            <span class="status-badge {{ 'status-admin' if user_item.is_admin else 'status-user' }}">
+                                {{ "Yes" if user_item.is_admin else "No" }}
+                            </span>
+                        </td>
+                        <td class="actions-cell">
+                            <a href="{{ url_for('admin_update_user', user_id=user_item.id) }}" class="btn btn-sm btn-outline-primary action-btn" title="Edit User">
+                                <i class="fas fa-edit"></i> Edit
+                            </a>
+                            {% if g.user.id != user_item.id %} {# Assuming g.user is available #}
+                            <form action="{{ url_for('admin_delete_user', user_id=user_item.id) }}" method="post" class="delete-form"
+                                  onsubmit="return confirm('Are you sure you want to delete {{ user_item.username }}? This action cannot be undone.');">
+                                <button type="submit" class="btn btn-sm btn-danger action-btn" title="Delete User">
+                                    <i class="fas fa-trash-alt"></i> Delete
+                                </button>
+                            </form>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% else %}
+        <div class="panel-empty-state" style="background-color: var(--card-bg); padding: 30px; border-radius: var(--border-radius-md); box-shadow: var(--shadow-sm);">
+            <i class="fas fa-users fa-2x" style="color: var(--text-color-light); margin-bottom:15px;"></i>
+            <p style="font-size: 1.1em; color: var(--text-color-light);">No users found in the '{{ department_name }}' department.</p>
+        </div>
+    {% endif %}
+</div>
+
+<style>
+    .department-users-container { /* Similar to other page containers */ }
+    .professional-panel { /* From admin_dashboard.html */
+        background-color: var(--card-bg);
+        padding: 20px 25px;
+        border-radius: var(--border-radius-md);
+        box-shadow: var(--shadow-md);
+        border: 1px solid var(--border-color);
+    }
+    /* Re-use .admin-user-table, .username-link, .status-badge, .actions-cell styles 
+       from dashboard_admin.html or ensure they are in base.css */
+    .admin-user-table th, .admin-user-table td { padding: 8px 12px; font-size: 0.9em; }
+    .username-link { color: var(--primary-color); text-decoration: none; font-weight: 500;}
+    .username-link:hover { text-decoration: underline; color: var(--primary-color-dark); }
+    .username-link strong { font-size: 1.05em; font-weight: 600; }
+    .status-badge { padding: 3px 7px; border-radius: var(--border-radius-sm); font-size:0.8em; font-weight:600; color:white; display:inline-block; }
+    .status-admin { background-color: var(--secondary-color); }
+    .status-user { background-color: var(--text-color-light); }
+    .actions-cell { white-space: nowrap; text-align: right; }
+    .actions-cell .action-btn { margin-left: 5px; padding: 4px 7px; font-size: 0.8em; }
+    .delete-form { display:inline-block; margin-left: 5px; }
+    .panel-empty-state { text-align:center; padding:20px; color:var(--text-color-light); } /* from dashboard_admin.html */
+</style>
+{% endblock %}

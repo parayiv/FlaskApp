@@ -253,7 +253,8 @@
         <div class="right">
             {% if g.user %}
                 <span>{{ g.user.username }}</span>
-                <a href="{{ url_for('dashboard') }}"><i class="fas fa-th-large fa-fw"></i> Dashboard</a>
+                {# UPDATED ICON FOR DASHBOARD #}
+                <a href="{{ url_for('dashboard') }}"><i class="fas fa-chart-line fa-fw"></i> Dashboard</a>
                 <a href="{{ url_for('logout') }}"><i class="fas fa-sign-out-alt fa-fw"></i> Logout</a>
             {% else %}
                 <a href="{{ url_for('login') }}"><i class="fas fa-sign-in-alt fa-fw"></i> Login</a>

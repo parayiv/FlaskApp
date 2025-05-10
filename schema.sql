@@ -57,6 +57,7 @@ CREATE TABLE requests (
     status TEXT NOT NULL DEFAULT 'pending', -- pending, approved, rejected
     submitted_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     admin_notes TEXT,
-    payslip_filename TEXT,      -- NEW: To store the filename of the uploaded payslip
+    payslip_filename TEXT,
+    vacation_approval_filename TEXT, -- NEW: To store the filename of the vacation approval
     FOREIGN KEY (user_id) REFERENCES users (id)
 );

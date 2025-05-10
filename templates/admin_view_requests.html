@@ -23,12 +23,12 @@
                         <th class="details-col-header">Details</th>
                         <th>Submitted</th>
                         <th class="status-col-header">Status & Notes</th>
-                        <th class="actions-col-header">Actions</th> {# New Column for Delete #}
+                        <th class="actions-col-header">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
                 {% for req in requests %}
-                    <tr class="request-row-{{ req.status|lower }}" id="request-{{ req.id }}"> {# Added ID for anchor #}
+                    <tr class="request-row-{{ req.status|lower }}" id="request-{{ req.id }}">
                         <td>{{ req.id }}</td>
                         <td>{{ req.user_username }}</td>
                         <td>
@@ -64,13 +64,20 @@
                                     </a>
                                 </div>
                                 {% endif %}
+                                {% if req.request_type == 'vacation' and req.status == 'approved' and req.vacation_approval_filename %}
+                                <div class="current-vacation-approval-link" style="margin-top: 8px;">
+                                    <a href="{{ url_for('view_vacation_approval', filename=req.vacation_approval_filename) }}" target="_blank" class="btn btn-xs btn-outline-info" title="View vacation approval">
+                                        <i class="fas fa-file-alt"></i> View Approval Doc
+                                    </a>
+                                </div>
+                                {% endif %}
 
                                 <button type="submit" class="btn btn-sm btn-primary btn-block update-button" style="margin-top: 8px;">
                                     <i class="fas fa-sync-alt"></i> Update Status
                                 </button>
                             </form>
                         </td>
-                        <td class="actions-cell-table"> {# New Cell for Delete Action #}
+                        <td class="actions-cell-table">
                             <form method="post" action="{{ url_for('admin_delete_request', request_id=req.id) }}" class="delete-request-form"
                                   onsubmit="return confirm('Are you sure you want to permanently delete this request (ID: {{ req.id }})? This action cannot be undone.');">
                                 <button type="submit" class="btn btn-xs btn-danger" title="Delete Request">
@@ -92,58 +99,28 @@
 </div>
 
 <style>
-    /* --- Define status background colors using CSS variables (or use hex codes directly) --- */
-    :root { /* These might already be in your base.html or another template's style */
-        --row-bg-pending: #fceaea;   /* Very light red/pink for pending */
-        --row-bg-approved: #eaf7ec;  /* Very light green for approved */
-        --row-bg-rejected: #f0f0f0;  /* Using a light grey for rejected for distinction */
-        /* --row-bg-rejected: #eaf7ec; /* Or keep it green if preferred */
+    :root { 
+        --row-bg-pending: #fceaea; 
+        --row-bg-approved: #eaf7ec;  
+        --row-bg-rejected: #f0f0f0; 
     }
 
     .admin-requests-container { }
     .page-header-section { display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; }
     .page-header-section .page-title { margin-bottom: 0; }
-    .back-link {} /* Assuming .btn-sm, .btn-outline-secondary styles are in base.html */
     .btn-outline-secondary { color: var(--secondary-color, #6c757d); border-color: var(--secondary-color, #6c757d); }
     .btn-outline-secondary:hover { background-color: var(--secondary-color, #6c757d); color: white; }
 
-
-    .professional-panel {
-        background-color: var(--card-bg);
-        padding: 20px 25px;
-        border-radius: var(--border-radius-md);
-        box-shadow: var(--shadow-md);
-        border: 1px solid var(--border-color);
-    }
+    .professional-panel { background-color: var(--card-bg); padding: 20px 25px; border-radius: var(--border-radius-md); box-shadow: var(--shadow-md); border: 1px solid var(--border-color); }
     .table-responsive-wrapper { overflow-x: auto; }
     .professional-table.admin-requests-table { width: 100%; border-collapse: collapse; }
-
-    .admin-requests-table th,
-    .admin-requests-table td {
-        padding: 9px 12px;
-        font-size: 0.9em;
-        border: 1px solid var(--border-color-light, #e9ecef);
-        vertical-align: middle;
-    }
-    .admin-requests-table thead th {
-        background-color: #f8f9fa;
-        font-weight: 600;
-        color: var(--text-color-dark);
-        text-transform: uppercase;
-        font-size: 0.8em;
-        letter-spacing: 0.5px;
-        border-bottom-width: 2px;
-        border-top: none;
-    }
+    .admin-requests-table th, .admin-requests-table td { padding: 9px 12px; font-size: 0.9em; border: 1px solid var(--border-color-light, #e9ecef); vertical-align: middle; }
+    .admin-requests-table thead th { background-color: #f8f9fa; font-weight: 600; color: var(--text-color-dark); text-transform: uppercase; font-size: 0.8em; letter-spacing: 0.5px; border-bottom-width: 2px; border-top: none; }
     .admin-requests-table .type-icon { color: var(--primary-color); opacity: 0.8; margin-right: 5px; }
     .details-cell { max-width: 280px; min-width: 150px; white-space: pre-wrap; word-break: break-word; font-size: 0.88em; line-height: 1.5; }
     .date-cell .time-muted { display: block; font-size: 0.85em; color: var(--text-color-light); }
     .status-actions-cell { min-width: 230px; }
-    .actions-cell-table { /* For the new delete action column */
-        text-align: center;
-        width: 60px; /* Fixed width for a small delete button */
-    }
-
+    .actions-cell-table { text-align: center; width: 60px; }
 
     .admin-requests-table tbody tr.request-row-pending { background-color: var(--row-bg-pending); }
     .admin-requests-table tbody tr.request-row-approved { background-color: var(--row-bg-approved); }
@@ -160,24 +137,16 @@
     .btn-block { display: block; width: 100%; }
     .update-button i { margin-right: 5px; }
 
-    .current-payslip-link { margin-top: 8px; font-size: 0.85em; }
-    .current-payslip-link a { color: var(--primary-color); text-decoration: none; }
-    .current-payslip-link a:hover { text-decoration: underline; }
-    .current-payslip-link i { margin-right: 4px; }
+    .current-payslip-link, .current-vacation-approval-link { margin-top: 8px; font-size: 0.85em; }
+    .current-payslip-link a, .current-vacation-approval-link a { color: var(--primary-color); text-decoration: none; }
+    .current-payslip-link a:hover, .current-vacation-approval-link a:hover { text-decoration: underline; }
+    .current-payslip-link i, .current-vacation-approval-link i { margin-right: 4px; }
     .btn-outline-info { color: var(--info-color, #17a2b8); border-color: var(--info-color, #17a2b8); }
     .btn-outline-info:hover { background-color: var(--info-color, #17a2b8); color: white; }
-    .delete-request-form { display: inline-block; } /* For the new delete button */
-    .btn-danger { /* Ensure this is defined in base.html or here */
-        background-color: var(--danger-color, #dc3545);
-        border-color: var(--danger-color, #dc3545);
-        color: white;
-    }
-    .btn-danger:hover {
-        background-color: #c82333; /* Darker red */
-        border-color: #bd2130;
-    }
+    .delete-request-form { display: inline-block; }
+    .btn-danger { background-color: var(--danger-color, #dc3545); border-color: var(--danger-color, #dc3545); color: white; }
+    .btn-danger:hover { background-color: #c82333; border-color: #bd2130; }
 
-    /* Panel Empty State - Ensure this is defined from base.html or other templates */
     .panel-empty-state { text-align: center; padding: 30px 20px; color: var(--text-color-light); }
     .panel-empty-state i { font-size: 2.5em; margin-bottom: 15px; color: var(--border-color); }
 </style>

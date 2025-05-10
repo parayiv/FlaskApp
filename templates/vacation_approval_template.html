@@ -1,0 +1,59 @@
+<!-- templates/vacation_approval_template.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Vacation Approval</title>
+    <style>
+        body { font-family: 'Helvetica', 'Arial', sans-serif; margin: 20px; color: #333; }
+        .container { width: 80%; margin: auto; padding: 20px; border: 1px solid #ddd; }
+        h1 { color: #2c3e50; text-align: center; border-bottom: 1px solid #eee; padding-bottom: 10px; }
+        p { line-height: 1.6; font-size: 14px; }
+        .details-section { margin-top: 20px; margin-bottom: 20px; }
+        .details-section strong { display: inline-block; width: 150px; }
+        .footer { margin-top: 30px; text-align: center; font-size: 12px; color: #777; }
+        .approved-stamp {
+            color: green;
+            font-weight: bold;
+            font-size: 18px;
+            text-align: center;
+            margin: 20px 0;
+            border: 2px solid green;
+            padding: 10px;
+            display: inline-block;
+            transform: rotate(-5deg);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Vacation Request Approved</h1>
+
+        <div class="details-section">
+            <p><strong>Employee Name:</strong> {{ user.full_name or user.username }}</p>
+            <p><strong>Employee ID:</strong> EMP-{{ user.id }}</p>
+            <p><strong>Department:</strong> {{ user.department or 'N/A' }}</p>
+            <p><strong>Request Details:</strong></p>
+            <p style="padding-left: 20px; white-space: pre-wrap;">{{ request_details }}</p>
+            <p><strong>Status:</strong> <span style="color: green; font-weight: bold;">APPROVED</span></p>
+            {% if admin_notes %}
+            <p><strong>Admin Notes:</strong> {{ admin_notes }}</p>
+            {% endif %}
+        </div>
+
+        <div style="text-align:center;">
+             <div class="approved-stamp">APPROVED</div>
+        </div>
+
+
+        <p>Your vacation request as detailed above has been approved. Please ensure all handovers are completed before your leave.</p>
+        <p>If you have any questions, please contact HR.</p>
+
+        <div class="footer">
+            This document was automatically generated on {{ generation_date }}.
+            <br>
+            Company Name HR Department
+        </div>
+    </div>
+</body>
+</html>

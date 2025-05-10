@@ -1,11 +1,11 @@
 import sqlite3
 import os
-from flask import Flask, render_template, request, redirect, url_for, session, flash, g, send_from_directory
+from flask import Flask, render_template, request, redirect, url_for, session, flash, g, send_from_directory, jsonify
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 from functools import wraps
 import click
-from datetime import datetime
+from datetime import datetime, timedelta
 from jinja2 import pass_eval_context
 from markupsafe import Markup, escape
 import uuid
@@ -355,6 +355,163 @@ def admin_view_department_users(department_name): # This function name becomes t
                            department_name=actual_department_name,
                            users=department_users)
 
+def parse_payslip_period_to_date(details_string):
+    """
+    Parses a payslip period string like "Payslip for: August 2023" 
+    and returns a datetime object for the first day of that month.
+    Returns None if parsing fails.
+    """
+    try:
+        period_part = details_string.split("Payslip for:", 1)[1].strip()
+        # Attempt to parse "Month Year" format
+        return datetime.strptime(period_part, "%B %Y")
+    except (IndexError, ValueError) as e:
+        app.logger.warning(f"Could not parse payslip period from '{details_string}': {e}")
+        # Try to parse just "Month, Year" if that's a possible format
+        try:
+            return datetime.strptime(period_part, "%B, %Y")
+        except ValueError:
+            # Try to parse just "YYYY-MM" if that's a possible format from some input
+            try:
+                return datetime.strptime(period_part.split('-')[1] + " " + period_part.split('-')[0], "%m %Y") # Assuming YYYY-MM from details
+            except: # Broad except as a last resort
+                app.logger.warning(f"Further failure parsing payslip period '{period_part}'")
+                return None
+
+
+def parse_vacation_dates(details_string):
+    """
+    Parses vacation details like "Vacation: Aug 10, 2023 to Aug 12, 2023..."
+    Returns (start_date, end_date_inclusive) as datetime objects, or (None, None).
+    The end_date_inclusive will be adjusted to be the end of that day for FullCalendar.
+    """
+    try:
+        # A more robust regex might be needed if the format varies significantly
+        import re
+        match = re.search(r"Vacation:\s*(.*?)\s*to\s*(.*?)\s*\(", details_string)
+        if match:
+            start_str = match.group(1).strip()
+            end_str = match.group(2).strip()
+            
+            start_date = datetime.strptime(start_str, "%b %d, %Y")
+            end_date = datetime.strptime(end_str, "%b %d, %Y")
+            
+            # For FullCalendar, if it's an all-day event spanning multiple days, 
+            # the 'end' property should be exclusive (the day AFTER the last day of the event).
+            # So, we add one day to the parsed end_date.
+            return start_date, end_date + timedelta(days=1)
+        else: # Try another common format, e.g., "YYYY-MM-DD to YYYY-MM-DD"
+            match_simple = re.search(r"Vacation From:\s*(\d{4}-\d{2}-\d{2})\s*To:\s*(\d{4}-\d{2}-\d{2})", details_string, re.IGNORECASE)
+            if match_simple:
+                start_date = datetime.strptime(match_simple.group(1), "%Y-%m-%d")
+                end_date = datetime.strptime(match_simple.group(2), "%Y-%m-%d")
+                return start_date, end_date + timedelta(days=1)
+
+    except Exception as e:
+        app.logger.warning(f"Could not parse vacation dates from '{details_string}': {e}")
+    return None, None
+
+def parse_payslip_period_to_date(details_string):
+    app.logger.debug(f"Attempting to parse payslip period from: '{details_string}'")
+    try:
+        # Assuming details_string is like "Payslip for: August 2023"
+        period_part = details_string.split("Payslip for:", 1)[1].strip()
+        dt = datetime.strptime(period_part, "%B %Y")
+        app.logger.debug(f"Parsed payslip date: {dt}")
+        return dt
+    except (IndexError, ValueError, AttributeError) as e: # Added AttributeError
+        app.logger.warning(f"Could not parse payslip period from '{details_string}': {e}")
+    return None
+
+
+def parse_vacation_dates(details_string):
+    app.logger.debug(f"Attempting to parse vacation dates from: '{details_string}'")
+    try:
+        import re
+        # Example: "Vacation: Aug 10, 2023 to Aug 12, 2023 (3 days)"
+        # More robust: allow for optional reason part
+        match = re.search(r"Vacation:\s*([A-Za-z]{3}\s\d{1,2},\s\d{4})\s*to\s*([A-Za-z]{3}\s\d{1,2},\s\d{4})", details_string)
+        if match:
+            start_str = match.group(1).strip()
+            end_str = match.group(2).strip()
+            
+            start_date = datetime.strptime(start_str, "%b %d, %Y")
+            end_date = datetime.strptime(end_str, "%b %d, %Y")
+            
+            app.logger.debug(f"Parsed vacation dates: START={start_date}, END={end_date}")
+            # For FullCalendar 'end', it's exclusive for multi-day all-day events
+            return start_date, end_date + timedelta(days=1)
+        else:
+            app.logger.warning(f"No match for vacation date pattern in '{details_string}'")
+            
+    except Exception as e: # Catch any parsing exception
+        app.logger.warning(f"Could not parse vacation dates from '{details_string}': {e}")
+    return None, None
+
+
+
+@app.route('/admin/calendar_events')
+@login_required
+@admin_required
+def admin_calendar_events():
+    db = get_db()
+    events = []
+    app.logger.debug("Fetching calendar events...")
+
+    # Fetch Approved Payslip Requests
+    payslip_requests = db.execute("""
+        SELECT r.id, r.details, u.username, u.department 
+        FROM requests r
+        JOIN users u ON r.user_id = u.id
+        WHERE r.request_type = 'payslip' AND r.status = 'approved'
+    """).fetchall()
+    app.logger.debug(f"Found {len(payslip_requests)} approved payslip requests.")
+
+    for req in payslip_requests:
+        app.logger.debug(f"Processing payslip request ID {req['id']}, details: {req['details']}")
+        payslip_date = parse_payslip_period_to_date(req['details'])
+        if payslip_date:
+            event_data = {
+                'title': f"Payslip: {req['username']} ({req['department'] or 'N/A'})",
+                'start': payslip_date.strftime('%Y-%m-%d'),
+                'allDay': True,
+                'extendedProps': {'type': 'payslip', 'department': req['department'] or 'Unassigned'},
+                'backgroundColor': '#2ecc71', 'borderColor': '#27ae60'
+            }
+            events.append(event_data)
+            app.logger.debug(f"Added payslip event: {event_data['title']} on {event_data['start']}")
+        else:
+            app.logger.warning(f"Could not determine date for payslip request ID {req['id']}")
+
+
+    # Fetch Approved Vacation Requests
+    vacation_requests = db.execute("""
+        SELECT r.id, r.details, u.username, u.department
+        FROM requests r
+        JOIN users u ON r.user_id = u.id
+        WHERE r.request_type = 'vacation' AND r.status = 'approved'
+    """).fetchall()
+    app.logger.debug(f"Found {len(vacation_requests)} approved vacation requests.")
+
+    for req in vacation_requests:
+        app.logger.debug(f"Processing vacation request ID {req['id']}, details: {req['details']}")
+        start_date, end_date_exclusive = parse_vacation_dates(req['details'])
+        if start_date and end_date_exclusive:
+            event_data = {
+                'title': f"Vacation: {req['username']} ({req['department'] or 'N/A'})",
+                'start': start_date.strftime('%Y-%m-%d'),
+                'end': end_date_exclusive.strftime('%Y-%m-%d'),
+                'allDay': True,
+                'extendedProps': {'type': 'vacation', 'department': req['department'] or 'Unassigned'},
+                'backgroundColor': '#3498db', 'borderColor': '#2980b9'
+            }
+            events.append(event_data)
+            app.logger.debug(f"Added vacation event: {event_data['title']} from {event_data['start']} to {event_data['end']}")
+        else:
+            app.logger.warning(f"Could not determine dates for vacation request ID {req['id']}")
+            
+    app.logger.debug(f"Total events generated: {len(events)}")
+    return jsonify(events)
 
 # --- Messaging Routes ---
 @app.route('/messages/send', methods=['GET', 'POST'])
